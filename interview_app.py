@@ -2176,49 +2176,39 @@ with st.sidebar:
             
             st.markdown("---")
             
-        # API 키 입력 (secrets.toml 우선, 없으면 입력받기)
-            st.markdown("##### 🔑 API 키 설정")
+        # API 키 설정 (보안: Secrets 또는 .env에서만 로드, 입력창 제거)
+        st.markdown("##### 🔑 API 키 설정")
         
-        # API 키 가져오기 (우선순위: Secrets > Env > Session State)
-        default_api_key = None
+        # API 키 가져오기 (우선순위: Secrets > .env 파일)
+        api_key = None
         
-        # 1. st.secrets 확인
+        # 1. st.secrets 확인 (배포 환경)
         try:
-            default_api_key = st.secrets.get("OPENAI_API_KEY", None)
-        except:
-            pass  # secrets가 없거나 접근 불가 시 무시
+            api_key = st.secrets.get("OPENAI_API_KEY", None)
+        except Exception:
+            # secrets가 없거나 접근 불가 시 무시
+            pass
         
-        # 2. os.environ 확인 (.env 파일)
-        if not default_api_key:
-            default_api_key = os.environ.get("OPENAI_API_KEY", "")
-            if not default_api_key:
-                default_api_key = None
+        # 2. os.environ 확인 (.env 파일 - 개발 환경)
+        if not api_key:
+            api_key = os.environ.get("OPENAI_API_KEY", None)
+            if api_key:
+                api_key = api_key.strip() if api_key else None
         
-        # 3. st.session_state 확인
-        if not default_api_key:
-            default_api_key = st.session_state.get("api_key", "")
-            if not default_api_key:
-                default_api_key = ""
-        
-        # 4. 최종적으로 빈 문자열이면 빈 문자열로 설정
-        if not default_api_key:
-            default_api_key = ""
-        
-        api_key = st.text_input(
-            "OpenAI API Key",
-            type="password",
-            value=default_api_key,
-            help="OpenAI API 키를 입력하세요. .env 파일에 설정되어 있으면 자동으로 로드됩니다."
-        )
-        st.session_state.api_key = api_key
-        
-        # 클라이언트 초기화
+        # API 키 상태 표시 및 클라이언트 초기화
         if api_key:
+            # 키가 정상적으로 로드된 경우
+            st.session_state.api_key = api_key
             st.session_state.client = initialize_openai_client(api_key)
             if st.session_state.client:
-                st.success("✅ API 연결됨")
+                st.success("✅ 이븐아이 AI 면접관 연결됨")
+            else:
+                st.error("❌ API 연결 실패. 관리자에게 문의하세요.")
         else:
-            st.warning("⚠️ API 키를 입력하세요")
+            # 키가 없는 경우
+            st.error("❌ 관리자에게 문의하세요 (API Key Missing)")
+            st.session_state.api_key = ""
+            st.session_state.client = None
         
         st.markdown("---")
         
