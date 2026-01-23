@@ -1,0 +1,498 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+      'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+:root {
+  --background: #0a0a0f;
+  --foreground: #ededed;
+  --cyber-purple: #8b5cf6;
+  --neon-cyan: #00f5ff;
+  --dark-800: #12121a;
+  --dark-700: #1a1a25;
+}
+
+body {
+  color: var(--foreground);
+  background:
+    /* 그리드 패턴 - 더 밝게 */
+    linear-gradient(rgba(0, 242, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 242, 255, 0.04) 1px, transparent 1px),
+    /* 좌상단 퍼플 글로우 */
+    radial-gradient(ellipse at top left, rgba(139, 92, 246, 0.25) 0%, transparent 50%),
+    /* 우하단 블루/민트 글로우 */
+    radial-gradient(ellipse at bottom right, rgba(0, 242, 255, 0.2) 0%, transparent 50%),
+    /* 추가 앰비언트 */
+    radial-gradient(ellipse at 30% 70%, rgba(139, 92, 246, 0.1) 0%, transparent 40%),
+    radial-gradient(ellipse at 70% 30%, rgba(0, 242, 255, 0.08) 0%, transparent 40%),
+    /* 베이스 - 딥 네이비 */
+    linear-gradient(180deg, #0d1117 0%, #0B0E14 100%);
+  background-size: 40px 40px, 40px 40px, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  min-height: 100vh;
+}
+
+/* 글래스모피즘 카드 */
+@layer components {
+  .glass-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+
+  .glass-card-dark {
+    background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  /* 네온 텍스트 효과 */
+  .neon-text {
+    text-shadow: 0 0 10px rgba(139, 92, 246, 0.8),
+                 0 0 20px rgba(139, 92, 246, 0.6),
+                 0 0 30px rgba(139, 92, 246, 0.4);
+  }
+
+  .neon-text-cyan {
+    text-shadow: 0 0 10px rgba(0, 245, 255, 0.8),
+                 0 0 20px rgba(0, 245, 255, 0.6),
+                 0 0 30px rgba(0, 245, 255, 0.4);
+  }
+
+  /* 네온 보더 효과 */
+  .neon-border {
+    border: 1px solid rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.3),
+                inset 0 0 10px rgba(139, 92, 246, 0.1);
+  }
+
+  .neon-border-cyan {
+    border: 1px solid rgba(0, 245, 255, 0.5);
+    box-shadow: 0 0 10px rgba(0, 245, 255, 0.3),
+                inset 0 0 10px rgba(0, 245, 255, 0.1);
+  }
+
+  /* 게이밍 버튼 */
+  .btn-gaming {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+    color: white;
+    font-weight: 600;
+    border: none;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+  }
+
+  .btn-gaming:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.6);
+  }
+
+  .btn-gaming:active {
+    transform: translateY(0);
+  }
+
+  .btn-gaming::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s ease;
+  }
+
+  .btn-gaming:hover::before {
+    left: 100%;
+  }
+
+  /* 사선 컷아웃 버튼 (AAA 게임 런처 스타일) */
+  .btn-cutout {
+    background: linear-gradient(135deg, #00D9A5 0%, #00F2FF 50%, #00C4E0 100%);
+    color: #0B0E14;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* 우하단만 사선 컷 */
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+    box-shadow:
+      0 0 20px rgba(0, 242, 255, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+
+  .btn-cutout:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.7);
+    box-shadow:
+      0 0 40px rgba(0, 242, 255, 0.7),
+      0 0 80px rgba(0, 242, 255, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    filter: brightness(1.15);
+  }
+
+  .btn-cutout:active {
+    transform: translateY(2px) scale(0.98);
+    box-shadow:
+      0 0 15px rgba(0, 242, 255, 0.5),
+      inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    filter: brightness(0.95);
+  }
+
+  .btn-cutout::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    transition: left 0.5s ease;
+  }
+
+  .btn-cutout:hover::before {
+    left: 100%;
+  }
+
+  /* 게이밍 인풋 */
+  .input-gaming {
+    background: rgba(18, 18, 26, 0.8);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: #ededed;
+    transition: all 0.3s ease;
+  }
+
+  .input-gaming:focus {
+    outline: none;
+    border-color: rgba(139, 92, 246, 0.8);
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);
+  }
+
+  .input-gaming::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  /* 프로그레스 바 */
+  .progress-gaming {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+
+  .progress-gaming-fill {
+    background: linear-gradient(90deg, #00f5ff 0%, #8b5cf6 50%, #a855f7 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+    border-radius: 9999px;
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+  }
+
+  /* 스크롤바 커스텀 */
+  .scrollbar-gaming::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-gaming::-webkit-scrollbar-track {
+    background: rgba(18, 18, 26, 0.5);
+    border-radius: 3px;
+  }
+
+  .scrollbar-gaming::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #8b5cf6 0%, #6366f1 100%);
+    border-radius: 3px;
+  }
+
+  .scrollbar-gaming::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #a78bfa 0%, #8b5cf6 100%);
+  }
+
+  /* 메시지 버블 */
+  .message-assistant {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.1) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+  }
+
+  .message-user {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    border: none;
+  }
+
+  /* HUD 스타일 코너 */
+  .hud-corners {
+    position: relative;
+  }
+
+  .hud-corners::before,
+  .hud-corners::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+  }
+
+  .hud-corners::before {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid rgba(0, 245, 255, 0.8);
+    border-left: 2px solid rgba(0, 245, 255, 0.8);
+    box-shadow: -2px -2px 10px rgba(0, 245, 255, 0.3);
+  }
+
+  .hud-corners::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 2px solid rgba(139, 92, 246, 0.8);
+    border-right: 2px solid rgba(139, 92, 246, 0.8);
+    box-shadow: 2px 2px 10px rgba(139, 92, 246, 0.3);
+  }
+
+  /* HUD 코너 - 4개 모두 */
+  .hud-corners-full {
+    position: relative;
+  }
+
+  .hud-corners-full::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    pointer-events: none;
+    background:
+      /* 좌상단 */
+      linear-gradient(to right, rgba(0, 245, 255, 0.8) 20px, transparent 20px) 0 0,
+      linear-gradient(to bottom, rgba(0, 245, 255, 0.8) 20px, transparent 20px) 0 0,
+      /* 우상단 */
+      linear-gradient(to left, rgba(139, 92, 246, 0.8) 20px, transparent 20px) 100% 0,
+      linear-gradient(to bottom, rgba(139, 92, 246, 0.8) 20px, transparent 20px) 100% 0,
+      /* 좌하단 */
+      linear-gradient(to right, rgba(139, 92, 246, 0.8) 20px, transparent 20px) 0 100%,
+      linear-gradient(to top, rgba(139, 92, 246, 0.8) 20px, transparent 20px) 0 100%,
+      /* 우하단 */
+      linear-gradient(to left, rgba(0, 245, 255, 0.8) 20px, transparent 20px) 100% 100%,
+      linear-gradient(to top, rgba(0, 245, 255, 0.8) 20px, transparent 20px) 100% 100%;
+    background-repeat: no-repeat;
+    background-size: 20px 2px, 2px 20px;
+  }
+
+  /* 캐릭터 선택 스타일 버튼 */
+  .btn-character-select {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-character-select::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(139, 92, 246, 0.4) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .btn-character-select.active::before {
+    opacity: 1;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .btn-character-select.active {
+    box-shadow:
+      0 0 20px rgba(139, 92, 246, 0.5),
+      inset 0 0 20px rgba(139, 92, 246, 0.1);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* 그라디언트 텍스트 */
+  .gradient-text {
+    background: linear-gradient(90deg, #00f5ff 0%, #8b5cf6 50%, #a855f7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* 호버 글로우 */
+  .hover-glow {
+    transition: box-shadow 0.3s ease;
+  }
+
+  .hover-glow:hover {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+  }
+}
+
+/* 레이더 스캔 애니메이션 */
+@keyframes radar-scan {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes radar-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes text-flicker {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  52% {
+    opacity: 1;
+  }
+  54% {
+    opacity: 0.7;
+  }
+  56% {
+    opacity: 1;
+  }
+}
+
+@keyframes border-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* 레이더 컨테이너 */
+.radar-container {
+  position: relative;
+}
+
+.radar-container::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, rgba(0, 245, 255, 0.5), transparent) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: radar-scan 3s linear infinite;
+}
+
+.radar-container::after {
+  content: '';
+  position: absolute;
+  inset: -30px;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 50%;
+  animation: radar-pulse 2s ease-in-out infinite;
+}
+
+/* 스캔라인 오버레이 */
+.scanline-overlay {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanline-overlay::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(0, 245, 255, 0.15),
+    rgba(0, 245, 255, 0.3),
+    rgba(0, 245, 255, 0.15),
+    transparent
+  );
+  animation: scanline 3s linear infinite;
+  pointer-events: none;
+}
+
+/* 텍스트 플리커 */
+.text-flicker {
+  animation: text-flicker 4s ease-in-out infinite;
+}
+
+/* 홀로그램 테두리 */
+.holo-border {
+  position: relative;
+}
+
+.holo-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 245, 255, 0.5),
+    rgba(139, 92, 246, 0.5),
+    rgba(0, 245, 255, 0.5)
+  );
+  background-size: 200% 100%;
+  border-radius: inherit;
+  animation: border-flow 3s linear infinite;
+  z-index: -1;
+}
+
+/* 애니메이션 */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.4); }
+  50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.6); }
+}
