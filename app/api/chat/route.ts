@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { buildSystemPrompt } from '@/lib/buildSystemPrompt';
-import type { InterviewData } from '@/lib/utils';
+import type { InterviewData } from '@/lib/types';
 import { FALLBACK_SYSTEM_PROMPT } from '@/lib/prompts';
+import { getInterviewData } from '@/lib/serverInterviewData';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     const body: ChatRequest = await request.json();
     const {
       messages,
-      interview_data,
+      interview_data: clientInterviewData,
       selected_job,
       selected_company,
       question_count = 0,
@@ -38,6 +39,9 @@ export async function POST(request: NextRequest) {
       config,
       resume_text,
     } = body;
+
+    // 서버에서 직접 로드 (클라이언트 데이터는 fallback)
+    const interview_data: InterviewData | undefined = getInterviewData() || clientInterviewData;
 
     // messages 유효성 검사
     if (!messages || !Array.isArray(messages)) {

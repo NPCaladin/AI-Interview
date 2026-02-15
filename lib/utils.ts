@@ -1,16 +1,5 @@
 import { 기술질문없는직군 } from './constants';
-
-export interface InterviewData {
-  공통_평가_기준?: string[];
-  직군별_데이터?: Record<string, {
-    필수_키워드?: string[];
-    기출_질문?: string[];
-  }>;
-  공통_인성_질문?: {
-    조직적합도?: string[];
-    직무로열티?: string[];
-  };
-}
+export type { InterviewData } from './types';
 
 export function filterQuestionsByCompany(
   questions: string[],

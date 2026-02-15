@@ -1,11 +1,9 @@
 'use client';
 
-import { UserCircle, Bot, Play, Scan, ArrowRight } from 'lucide-react';
-
-export interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
+import { useRef, useEffect } from 'react';
+import { UserCircle, Bot, Play, Terminal, Wifi, Signal, Volume2, Mic } from 'lucide-react';
+import { toast } from 'sonner';
+import type { Message } from '@/lib/types';
 
 interface ChatAreaProps {
   messages: Message[];
@@ -16,6 +14,307 @@ interface ChatAreaProps {
   selectedCompany?: string;
 }
 
+// 타이핑 효과 도트 애니메이션
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="w-2 h-2 bg-[#00F2FF] rounded-full animate-[bounce_1s_infinite_0ms]" />
+      <span className="w-2 h-2 bg-[#00F2FF]/70 rounded-full animate-[bounce_1s_infinite_150ms]" />
+      <span className="w-2 h-2 bg-[#00F2FF]/40 rounded-full animate-[bounce_1s_infinite_300ms]" />
+    </div>
+  );
+}
+
+// 면접관 메시지 컴포넌트
+function InterviewerMessage({ content, isLatest }: { content: string; isLatest: boolean }) {
+  return (
+    <div className="flex items-start gap-2 md:gap-4 group">
+      {/* 아바타 */}
+      <div className="relative flex-shrink-0">
+        <div className="w-9 h-9 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-gradient-to-br from-[#00F2FF]/20 to-[#8b5cf6]/20 border border-[#00F2FF]/30 flex items-center justify-center backdrop-blur-sm">
+          <Bot className="w-4 h-4 md:w-6 md:h-6 text-[#00F2FF]" />
+        </div>
+        {/* 온라인 상태 표시 */}
+        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 md:w-3.5 md:h-3.5 bg-dark-800 rounded-full flex items-center justify-center">
+          <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-[#00ff88] rounded-full animate-pulse" />
+        </div>
+        {/* 음성 웨이브 (최신 메시지일 때) */}
+        {isLatest && (
+          <div className="absolute -left-1 top-1/2 -translate-y-1/2 hidden md:flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Volume2 className="w-3 h-3 text-[#00F2FF]/50" />
+          </div>
+        )}
+      </div>
+
+      {/* 메시지 버블 */}
+      <div className="flex-1 max-w-[85%] md:max-w-[80%]">
+        {/* 헤더 */}
+        <div className="flex items-center gap-2 mb-1.5 md:mb-2">
+          <span className="text-[10px] md:text-xs font-mono text-[#00F2FF] tracking-wider">INTERVIEWER</span>
+          <div className="hidden md:flex items-center gap-1">
+            <Signal className="w-3 h-3 text-[#00ff88]" />
+            <span className="text-[10px] font-mono text-gray-500">AI</span>
+          </div>
+        </div>
+
+        {/* 버블 */}
+        <div className="relative">
+          {/* 배경 글로우 */}
+          <div className="absolute inset-0 bg-[#00F2FF]/5 rounded-2xl blur-xl" />
+
+          {/* 메인 버블 */}
+          <div className="relative bg-gradient-to-br from-dark-700/90 to-dark-800/90 backdrop-blur-md rounded-2xl rounded-tl-sm px-3 md:px-5 py-3 md:py-4 border border-[#00F2FF]/20">
+            {/* 코너 장식 */}
+            <div className="hidden md:block absolute top-0 right-0 w-4 h-4 border-t border-r border-[#00F2FF]/30 rounded-tr-2xl" />
+            <div className="hidden md:block absolute bottom-0 left-0 w-4 h-4 border-b border-l border-[#8b5cf6]/30 rounded-bl-2xl" />
+
+            <p className="text-xs md:text-sm leading-relaxed text-gray-200 whitespace-pre-wrap">{content}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 지원자 메시지 컴포넌트
+function ApplicantMessage({ content }: { content: string }) {
+  return (
+    <div className="flex items-start gap-2 md:gap-4 justify-end">
+      {/* 메시지 버블 */}
+      <div className="max-w-[85%] md:max-w-[80%]">
+        {/* 헤더 */}
+        <div className="flex items-center gap-2 mb-1.5 md:mb-2 justify-end">
+          <Mic className="hidden md:block w-3 h-3 text-[#8b5cf6]/50" />
+          <span className="text-[10px] md:text-xs font-mono text-[#8b5cf6] tracking-wider">APPLICANT</span>
+        </div>
+
+        {/* 버블 */}
+        <div className="relative">
+          {/* 배경 글로우 */}
+          <div className="absolute inset-0 bg-[#8b5cf6]/10 rounded-2xl blur-xl" />
+
+          {/* 메인 버블 */}
+          <div className="relative bg-gradient-to-br from-[#8b5cf6]/30 to-[#6366f1]/20 backdrop-blur-md rounded-2xl rounded-tr-sm px-3 md:px-5 py-3 md:py-4 border border-[#8b5cf6]/30">
+            {/* 스캔라인 효과 */}
+            <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none opacity-20">
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-transparent h-[200%] animate-[scan_3s_linear_infinite]" />
+            </div>
+
+            <p className="text-xs md:text-sm leading-relaxed text-white whitespace-pre-wrap relative z-10">{content}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 아바타 */}
+      <div className="relative flex-shrink-0">
+        <div className="w-9 h-9 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-gradient-to-br from-[#8b5cf6]/20 to-[#6366f1]/20 border border-[#8b5cf6]/30 flex items-center justify-center">
+          <UserCircle className="w-4 h-4 md:w-6 md:h-6 text-[#8b5cf6]" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 로딩 메시지 컴포넌트
+function LoadingMessage() {
+  return (
+    <div className="flex items-start gap-2 md:gap-4">
+      {/* 아바타 */}
+      <div className="relative flex-shrink-0">
+        <div className="w-9 h-9 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-gradient-to-br from-[#00F2FF]/20 to-[#8b5cf6]/20 border border-[#00F2FF]/30 flex items-center justify-center animate-pulse">
+          <Bot className="w-4 h-4 md:w-6 md:h-6 text-[#00F2FF]" />
+        </div>
+        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 md:w-3.5 md:h-3.5 bg-dark-800 rounded-full flex items-center justify-center">
+          <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-[#00F2FF] rounded-full animate-ping" />
+        </div>
+      </div>
+
+      {/* 메시지 */}
+      <div className="max-w-[85%] md:max-w-[80%]">
+        <div className="flex items-center gap-2 mb-1.5 md:mb-2">
+          <span className="text-[10px] md:text-xs font-mono text-[#00F2FF] tracking-wider">INTERVIEWER</span>
+          <span className="text-[10px] font-mono text-[#00F2FF] animate-pulse">PROCESSING</span>
+        </div>
+
+        <div className="relative bg-gradient-to-br from-dark-700/90 to-dark-800/90 backdrop-blur-md rounded-2xl rounded-tl-sm px-3 md:px-5 py-3 md:py-4 border border-[#00F2FF]/20">
+          <div className="flex items-center gap-2 md:gap-3">
+            <TypingIndicator />
+            <span className="text-xs md:text-sm text-gray-400">응답 생성 중...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 빈 상태 (시작 전) 컴포넌트
+function EmptyState({
+  onStartInterview,
+  isInterviewStarted,
+  selectedJob,
+  selectedCompany,
+}: {
+  onStartInterview?: () => void;
+  isInterviewStarted: boolean;
+  selectedJob: string;
+  selectedCompany: string;
+}) {
+  const handleStartClick = () => {
+    if (!selectedJob || !selectedCompany) {
+      toast.error('좌측 사이드바에서 직군 카테고리, 지원 직군, 회사를 모두 선택해주세요.');
+      return;
+    }
+    onStartInterview?.();
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full relative px-4 md:px-8">
+      {/* 배경 그리드 애니메이션 */}
+      <div className="absolute inset-0 overflow-hidden opacity-30">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,242,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,242,255,0.03)_1px,transparent_1px)] bg-[size:50px_50px] animate-[grid-move_20s_linear_infinite]" />
+      </div>
+
+      {/* 메인 컨텐츠 */}
+      <div className="relative z-10 flex flex-col items-center">
+
+        {/* 홀로그램 터미널 */}
+        <div className="relative mb-8 md:mb-12 group">
+          {/* 외부 링 - 모바일에서 숨김 */}
+          <div className="hidden md:block absolute -inset-16 rounded-full border border-[#00F2FF]/10 animate-[spin_30s_linear_infinite]" />
+          <div className="hidden md:block absolute -inset-12 rounded-full border border-[#8b5cf6]/10 animate-[spin_25s_linear_infinite_reverse]" />
+
+          {/* 코너 마커 - 모바일에서 숨김 */}
+          <div className="hidden md:block absolute -inset-8">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#00F2FF]/50 rotate-45" />
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#00F2FF]/50 rotate-45" />
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-[#8b5cf6]/50 rotate-45" />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-[#8b5cf6]/50 rotate-45" />
+          </div>
+
+          {/* 터미널 박스 */}
+          <div className="relative w-20 h-20 md:w-32 md:h-32 bg-gradient-to-br from-dark-700/80 to-dark-800/80 rounded-xl md:rounded-2xl border border-[#00F2FF]/30 backdrop-blur-xl flex items-center justify-center overflow-hidden">
+            {/* 스캔라인 */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#00F2FF]/5 to-transparent h-[200%] animate-[scan_2s_linear_infinite]" />
+
+            {/* 아이콘 */}
+            <div className="relative">
+              <Terminal className="w-8 h-8 md:w-12 md:h-12 text-[#00F2FF] drop-shadow-[0_0_20px_rgba(0,242,255,0.5)]" />
+              <div className="absolute inset-0 animate-ping">
+                <Terminal className="w-8 h-8 md:w-12 md:h-12 text-[#00F2FF] opacity-30" />
+              </div>
+            </div>
+
+            {/* 코너 HUD */}
+            <div className="absolute top-1.5 left-1.5 md:top-2 md:left-2 w-2 h-2 md:w-3 md:h-3 border-t border-l border-[#00F2FF]/50" />
+            <div className="absolute top-1.5 right-1.5 md:top-2 md:right-2 w-2 h-2 md:w-3 md:h-3 border-t border-r border-[#00F2FF]/50" />
+            <div className="absolute bottom-1.5 left-1.5 md:bottom-2 md:left-2 w-2 h-2 md:w-3 md:h-3 border-b border-l border-[#8b5cf6]/50" />
+            <div className="absolute bottom-1.5 right-1.5 md:bottom-2 md:right-2 w-2 h-2 md:w-3 md:h-3 border-b border-r border-[#8b5cf6]/50" />
+          </div>
+
+          {/* 글로우 */}
+          <div className="absolute inset-0 bg-[#00F2FF]/10 rounded-xl md:rounded-2xl blur-2xl md:blur-3xl" />
+        </div>
+
+        {/* 상태 텍스트 */}
+        <div className="text-center mb-6 md:mb-10">
+          <div className="flex items-center justify-center gap-2 mb-3 md:mb-4">
+            <Wifi className="w-3 h-3 md:w-4 md:h-4 text-[#00ff88] animate-pulse" />
+            <span className="text-[10px] md:text-xs font-mono text-[#00ff88] tracking-[0.2em] md:tracking-[0.3em]">SYSTEM READY</span>
+          </div>
+
+          <h2 className="text-2xl md:text-4xl font-bold mb-3 md:mb-4 tracking-tight">
+            <span className="text-white">INTERVIEW</span>
+            <span className="text-[#00F2FF] ml-2 md:ml-3 drop-shadow-[0_0_20px_rgba(0,242,255,0.5)]">TERMINAL</span>
+          </h2>
+
+          <p className="text-gray-400 max-w-sm md:max-w-md leading-relaxed text-xs md:text-sm px-2">
+            <span className="md:hidden">메뉴에서 직군과 회사를 선택 후 시작하세요</span>
+            <span className="hidden md:inline">
+              좌측 패널에서 <span className="text-[#00F2FF] font-medium">직군</span>과{' '}
+              <span className="text-[#8b5cf6] font-medium">회사</span>를 선택한 후<br />
+              아래 버튼을 눌러 면접을 시작하세요
+            </span>
+          </p>
+        </div>
+
+        {/* 시작 버튼 */}
+        {!isInterviewStarted && onStartInterview && (
+          <button
+            onClick={handleStartClick}
+            className="group relative"
+          >
+            {/* 외부 글로우 */}
+            <div className="absolute -inset-4 bg-gradient-to-r from-[#00F2FF]/20 to-[#8b5cf6]/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500" />
+
+            {/* 버튼 */}
+            <div className="relative px-6 md:px-10 py-3 md:py-4 bg-gradient-to-r from-[#00D9A5] via-[#00F2FF] to-[#00C4E0] rounded-xl overflow-hidden transition-all duration-300 group-hover:shadow-[0_0_40px_rgba(0,242,255,0.4)] group-active:scale-95">
+              {/* 스캔 효과 */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+
+              {/* 컨텐츠 */}
+              <div className="relative flex items-center gap-3 md:gap-4">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-dark-900/20 rounded-lg flex items-center justify-center">
+                  <Play className="w-4 h-4 md:w-5 md:h-5 text-dark-900 fill-current" />
+                </div>
+                <div className="text-left">
+                  <div className="text-[8px] md:text-[10px] text-dark-900/60 tracking-[0.15em] md:tracking-[0.2em] font-mono">INITIALIZE</div>
+                  <div className="text-sm md:text-lg font-bold text-dark-900 tracking-wide">START INTERVIEW</div>
+                </div>
+                <div className="ml-2 md:ml-4 text-xl md:text-2xl text-dark-900/60 font-light">»</div>
+              </div>
+            </div>
+
+            {/* 코너 브라켓 - 모바일에서 숨김 */}
+            <div className="hidden md:block absolute -inset-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#00F2FF]" />
+              <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-[#00F2FF]" />
+              <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-[#8b5cf6]" />
+              <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#8b5cf6]" />
+            </div>
+          </button>
+        )}
+
+        {/* 선택 정보 표시 */}
+        {(selectedJob || selectedCompany) && (
+          <div className="mt-5 md:mt-8 flex flex-wrap items-center justify-center gap-2 md:gap-4 text-[10px] md:text-xs font-mono">
+            {selectedJob && (
+              <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 md:py-1.5 bg-[#00F2FF]/10 border border-[#00F2FF]/30 rounded-lg">
+                <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-[#00F2FF] rounded-full" />
+                <span className="text-[#00F2FF]">{selectedJob}</span>
+              </div>
+            )}
+            {selectedCompany && (
+              <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 md:py-1.5 bg-[#8b5cf6]/10 border border-[#8b5cf6]/30 rounded-lg">
+                <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-[#8b5cf6] rounded-full" />
+                <span className="text-[#8b5cf6]">{selectedCompany}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 하단 장식 - 모바일에서 숨김 */}
+      <div className="hidden md:flex absolute bottom-6 left-1/2 -translate-x-1/2 items-center gap-3">
+        <div className="w-20 h-px bg-gradient-to-r from-transparent to-[#00F2FF]/30" />
+        <span className="text-[10px] font-mono text-gray-600 tracking-[0.2em]">EvenI INTERVIEW v2.0</span>
+        <div className="w-20 h-px bg-gradient-to-l from-transparent to-[#8b5cf6]/30" />
+      </div>
+
+      {/* 스타일 */}
+      <style jsx>{`
+        @keyframes grid-move {
+          0% { transform: translate(0, 0); }
+          100% { transform: translate(50px, 50px); }
+        }
+        @keyframes scan {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(0%); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export default function ChatArea({
   messages,
   isLoading = false,
@@ -24,212 +323,75 @@ export default function ChatArea({
   selectedJob = '',
   selectedCompany = '',
 }: ChatAreaProps) {
-  const handleStartClick = () => {
-    if (!selectedJob || !selectedCompany) {
-      alert('좌측 사이드바에서 직군 카테고리, 지원 직군, 회사를 모두 선택해주세요.');
-      return;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 새 메시지가 오면 스크롤
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-    onStartInterview?.();
-  };
+  }, [messages, isLoading]);
+
   return (
-    <div className="flex-1 overflow-y-auto bg-gradient-to-b from-dark-800 to-dark-900 p-6 scrollbar-gaming">
+    <div
+      ref={scrollRef}
+      className="flex-1 overflow-y-auto scrollbar-gaming relative"
+      style={{
+        background: `
+          linear-gradient(to bottom, rgba(18,18,26,0.95), rgba(10,10,15,0.98)),
+          radial-gradient(ellipse at top, rgba(0,242,255,0.05) 0%, transparent 50%),
+          radial-gradient(ellipse at bottom, rgba(139,92,246,0.05) 0%, transparent 50%)
+        `,
+      }}
+    >
       {messages.length === 0 && !isLoading ? (
-        /* Empty State - FPS 조준경 스타일 */
-        <div className="flex flex-col items-center justify-center h-full relative">
-          {/* FPS 레티클 (조준경) */}
-          <div className="relative mb-10 group cursor-pointer">
-            {/* 외부 코너 브라켓 - 회전 */}
-            <div className="absolute inset-0 -m-12 w-40 h-40 animate-[spin_20s_linear_infinite]">
-              {/* 좌상단 */}
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-[#00F2FF]/60"></div>
-              {/* 우상단 */}
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-[#00F2FF]/60"></div>
-              {/* 좌하단 */}
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-[#00F2FF]/60"></div>
-              {/* 우하단 */}
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-[#00F2FF]/60"></div>
-            </div>
-
-            {/* 내부 코너 브라켓 - 역회전 */}
-            <div className="absolute inset-0 -m-6 w-28 h-28 animate-[spin_15s_linear_infinite_reverse]">
-              <div className="absolute top-0 left-0 w-5 h-5 border-t border-l border-cyber-400/80"></div>
-              <div className="absolute top-0 right-0 w-5 h-5 border-t border-r border-cyber-400/80"></div>
-              <div className="absolute bottom-0 left-0 w-5 h-5 border-b border-l border-cyber-400/80"></div>
-              <div className="absolute bottom-0 right-0 w-5 h-5 border-b border-r border-cyber-400/80"></div>
-            </div>
-
-            {/* 십자선 */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              {/* 가로선 */}
-              <div className="absolute w-32 h-[1px] bg-gradient-to-r from-transparent via-[#00F2FF]/40 to-transparent"></div>
-              {/* 세로선 */}
-              <div className="absolute h-32 w-[1px] bg-gradient-to-b from-transparent via-[#00F2FF]/40 to-transparent"></div>
-            </div>
-
-            {/* 중앙 원 + 펄스 */}
-            <div className="relative w-16 h-16 flex items-center justify-center">
-              {/* 펄스 링 */}
-              <div className="absolute inset-0 rounded-full border border-[#00F2FF]/30 animate-ping"></div>
-              <div className="absolute inset-2 rounded-full border border-[#00F2FF]/20 animate-pulse"></div>
-
-              {/* 중앙 점 */}
-              <div className="w-3 h-3 rounded-full bg-[#00F2FF] shadow-[0_0_15px_rgba(0,242,255,0.8),0_0_30px_rgba(0,242,255,0.4)]"></div>
-            </div>
-
-            {/* 배경 글로우 */}
-            <div className="absolute inset-0 -m-8 bg-[#00F2FF]/5 rounded-full blur-3xl"></div>
-
-            {/* 거리 표시 (장식) */}
-            <div className="absolute -right-20 top-1/2 -translate-y-1/2 text-[10px] font-tech text-[#00F2FF]/50 tracking-wider">
-              100m
-            </div>
-            <div className="absolute -left-20 top-1/2 -translate-y-1/2 text-[10px] font-tech text-[#00F2FF]/50 tracking-wider">
-              READY
-            </div>
-          </div>
-
-          {/* 상태 텍스트 */}
-          <div className="text-center mb-8">
-            <p className="text-xs font-tech text-[#00F2FF] tracking-[0.3em] mb-2 animate-pulse">
-              ● TARGET ACQUIRED
-            </p>
-            <h3 className="text-3xl font-bold font-tech tracking-wide mb-3">
-              <span className="text-white">INTERVIEW</span>
-              <span className="text-[#00F2FF] ml-2">MODE</span>
-            </h3>
-            <p className="text-gray-400 max-w-md leading-relaxed">
-              좌측 사이드바에서 직군과 회사를 선택한 후<br />
-              <span className="text-[#00F2FF] font-tech">START</span> 버튼을 눌러주세요
-            </p>
-          </div>
-
-          {/* 시작 버튼 */}
-          {!isInterviewStarted && onStartInterview && (
-            <div className="relative group">
-              {/* 외부 글로우 링 */}
-              <div className="absolute -inset-4 bg-gradient-to-r from-[#00F2FF]/20 via-[#00D9A5]/20 to-[#00F2FF]/20 rounded-lg blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-              {/* 코너 브라켓 장식 */}
-              <div className="absolute -inset-3 pointer-events-none">
-                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#00F2FF]/50 group-hover:border-[#00F2FF] transition-colors"></div>
-                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-[#00F2FF]/50 group-hover:border-[#00F2FF] transition-colors"></div>
-                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-[#00F2FF]/50 group-hover:border-[#00F2FF] transition-colors"></div>
-                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#00F2FF]/50 group-hover:border-[#00F2FF] transition-colors"></div>
-              </div>
-
-              <button
-                onClick={handleStartClick}
-                className="relative btn-cutout h-14 px-6 flex items-center justify-between gap-6 font-tech transition-all duration-300 min-w-[320px]"
-              >
-                {/* 좌측: Play 아이콘 */}
-                <div className="flex-shrink-0">
-                  <Play className="w-5 h-5 fill-current" />
-                </div>
-
-                {/* 중앙: 텍스트 영역 */}
-                <div className="flex items-center gap-3 flex-1 justify-center">
-                  <div className="flex flex-col items-end leading-tight">
-                    <span className="text-[9px] text-[#0B0E14]/60 tracking-[0.2em]">PRESS TO</span>
-                    <span className="text-lg font-bold tracking-wide text-[#0B0E14]">START</span>
-                  </div>
-
-                  {/* 구분선 */}
-                  <div className="w-[2px] h-8 bg-[#0B0E14]/40"></div>
-
-                  <span className="text-sm font-medium tracking-[0.15em] text-[#0B0E14]">INTERVIEW</span>
-                </div>
-
-                {/* 우측: 화살표 아이콘 (원형 배경) */}
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#0B0E14]/10 flex items-center justify-center group-hover:bg-[#0B0E14]/20 transition-colors">
-                  <span className="text-[#0B0E14] font-bold text-lg">»</span>
-                </div>
-              </button>
-            </div>
-          )}
-
-          {/* 하단 데코레이션 */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3">
-            <div className="w-16 h-[1px] bg-gradient-to-r from-transparent to-[#00F2FF]/30"></div>
-            <div className="w-1.5 h-1.5 bg-[#00F2FF]/50 rotate-45"></div>
-            <p className="text-[10px] font-tech text-gray-500 tracking-widest">EvenI INTERVIEW SYSTEM</p>
-            <div className="w-1.5 h-1.5 bg-[#00F2FF]/50 rotate-45"></div>
-            <div className="w-16 h-[1px] bg-gradient-to-l from-transparent to-[#00F2FF]/30"></div>
-          </div>
-        </div>
+        <EmptyState
+          onStartInterview={onStartInterview}
+          isInterviewStarted={isInterviewStarted}
+          selectedJob={selectedJob}
+          selectedCompany={selectedCompany}
+        />
       ) : (
-        <div className="space-y-6 max-w-4xl mx-auto">
+        <div className="p-3 md:p-6 space-y-4 md:space-y-6 max-w-4xl mx-auto">
+          {/* 세션 시작 표시 */}
+          <div className="flex items-center justify-center gap-2 md:gap-4 py-2 md:py-4">
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#00F2FF]/20 to-transparent" />
+            <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1 md:py-1.5 bg-dark-700/50 rounded-full border border-[#00F2FF]/20">
+              <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-[#00ff88] rounded-full animate-pulse" />
+              <span className="text-[8px] md:text-[10px] font-mono text-gray-500 tracking-wider">SESSION STARTED</span>
+            </div>
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b5cf6]/20 to-transparent" />
+          </div>
+
+          {/* 메시지 목록 */}
           {messages.map((message, index) => (
-            <div
-              key={index}
-              className={`flex items-start gap-4 ${
-                message.role === 'assistant' ? 'justify-start' : 'justify-end'
-              }`}
-            >
-              {message.role === 'assistant' && (
-                <div className="flex-shrink-0">
-                  <div className="w-11 h-11 bg-gradient-gaming rounded-xl flex items-center justify-center shadow-glow">
-                    <Bot className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              )}
-
-              <div
-                className={`max-w-[75%] rounded-2xl px-5 py-4 ${
-                  message.role === 'assistant'
-                    ? 'message-assistant'
-                    : 'message-user shadow-glow'
-                }`}
-              >
-                {message.role === 'assistant' && (
-                  <div className="text-xs font-semibold text-cyber-400 mb-2 flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 bg-neon-cyan rounded-full"></div>
-                    <span>면접관</span>
-                  </div>
-                )}
-                {message.role === 'user' && (
-                  <div className="text-xs font-semibold text-white/70 mb-2 flex items-center gap-1.5">
-                    <UserCircle className="w-3.5 h-3.5" />
-                    <span>지원자</span>
-                  </div>
-                )}
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-100">{message.content}</p>
-              </div>
-
-              {message.role === 'user' && (
-                <div className="flex-shrink-0">
-                  <div className="w-11 h-11 bg-gradient-to-br from-dark-500 to-dark-600 rounded-xl flex items-center justify-center border border-cyber-500/30">
-                    <UserCircle className="w-6 h-6 text-cyber-300" />
-                  </div>
-                </div>
+            <div key={message.id}>
+              {message.role === 'assistant' ? (
+                <InterviewerMessage
+                  content={message.content}
+                  isLatest={index === messages.length - 1 && !isLoading}
+                />
+              ) : (
+                <ApplicantMessage content={message.content} />
               )}
             </div>
           ))}
 
-          {isLoading && (
-            <div className="flex items-start gap-4 justify-start">
-              <div className="flex-shrink-0">
-                <div className="w-11 h-11 bg-gradient-gaming rounded-xl flex items-center justify-center shadow-glow animate-glow-pulse">
-                  <Bot className="w-6 h-6 text-white" />
-                </div>
-              </div>
-              <div className="max-w-[75%] rounded-2xl px-5 py-4 message-assistant">
-                <div className="text-xs font-semibold text-cyber-400 mb-2 flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 bg-neon-cyan rounded-full animate-pulse"></div>
-                  <span>면접관</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-1.5">
-                    <div className="w-2 h-2 bg-cyber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-cyber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-cyber-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                  </div>
-                  <span className="text-xs text-gray-400">답변 생성 중...</span>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* 로딩 표시 */}
+          {isLoading && <LoadingMessage />}
+
+          {/* 하단 여백 */}
+          <div className="h-4" />
         </div>
       )}
+
+      {/* 스타일 */}
+      <style jsx global>{`
+        @keyframes scan {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(100%); }
+        }
+      `}</style>
     </div>
   );
 }

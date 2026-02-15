@@ -26,6 +26,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
 
 # vercel
@@ -35,5 +36,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-
+# 대용량/불필요 파일
+*.mp4
+*.zip
+*.csv
+backup_original/
+__pycache__/
+*.py
+nul
+데이터원본/
+.claude/
+면접결과_*
+분석리포트_*
 

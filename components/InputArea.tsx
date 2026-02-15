@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Upload, Send, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface InputAreaProps {
   onSendMessage?: (message: string) => void;
@@ -21,13 +22,22 @@ export default function InputArea({
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const mimeTypeRef = useRef<string>('audio/webm');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 컴포넌트 언마운트 시 녹음 스트림 정리
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach(track => track.stop());
+    };
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!isInterviewStarted) {
-      alert('먼저 좌측 사이드바에서 "면접 시작" 버튼을 눌러주세요.');
+      toast.error('먼저 좌측 사이드바에서 "면접 시작" 버튼을 눌러주세요.');
       return;
     }
 
@@ -39,14 +49,16 @@ export default function InputArea({
 
   const startRecording = async () => {
     if (!isInterviewStarted) {
-      alert('먼저 좌측 사이드바에서 "면접 시작" 버튼을 눌러주세요.');
+      toast.error('먼저 좌측 사이드바에서 "면접 시작" 버튼을 눌러주세요.');
       return;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
+      mimeTypeRef.current = mediaRecorder.mimeType || 'audio/webm';
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
@@ -56,10 +68,11 @@ export default function InputArea({
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeTypeRef.current });
 
         // 스트림 정리
         stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
 
         if (onAudioInput) {
           setIsProcessingAudio(true);
@@ -75,7 +88,7 @@ export default function InputArea({
       setIsRecording(true);
     } catch (error) {
       console.error('녹음 시작 실패:', error);
-      alert('마이크 권한이 필요합니다. 브라우저 설정에서 마이크 권한을 허용해주세요.');
+      toast.error('마이크 권한이 필요합니다. 브라우저 설정에서 마이크 권한을 허용해주세요.');
     }
   };
 
@@ -99,7 +112,7 @@ export default function InputArea({
     if (!file) return;
 
     if (!isInterviewStarted) {
-      alert('먼저 좌측 사이드바에서 "면접 시작" 버튼을 눌러주세요.');
+      toast.error('먼저 좌측 사이드바에서 "면접 시작" 버튼을 눌러주세요.');
       return;
     }
 
@@ -119,14 +132,14 @@ export default function InputArea({
   return (
     <>
       {/* 플로팅 입력 바 */}
-      <div className="px-6 pb-6 bg-dark-900">
-        <div className="max-w-4xl mx-auto glass-card-dark rounded-full p-2 flex items-center gap-2">
+      <div className="px-3 md:px-6 pb-4 md:pb-6 bg-dark-900">
+        <div className="max-w-4xl mx-auto glass-card-dark rounded-full p-1.5 md:p-2 flex items-center gap-1.5 md:gap-2">
           {/* 마이크 버튼 */}
           <button
             type="button"
             onClick={handleMicClick}
             disabled={!isInterviewStarted || isLoading || isProcessingAudio}
-            className={`flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+            className={`flex-shrink-0 w-11 h-11 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${
               isRecording
                 ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30 animate-pulse'
                 : isInterviewStarted && !isLoading && !isProcessingAudio
@@ -136,13 +149,13 @@ export default function InputArea({
             aria-label={isRecording ? '녹음 중지' : '녹음 시작'}
           >
             {isRecording ? (
-              <MicOff className="w-6 h-6" />
+              <MicOff className="w-5 h-5 md:w-6 md:h-6" />
             ) : (
-              <Mic className="w-6 h-6" />
+              <Mic className="w-5 h-5 md:w-6 md:h-6" />
             )}
           </button>
 
-          {/* 파일 업로드 버튼 */}
+          {/* 파일 업로드 버튼 - 모바일에서 숨김 */}
           <input
             ref={fileInputRef}
             type="file"
@@ -153,7 +166,7 @@ export default function InputArea({
           />
           <label
             htmlFor="audio-file-input"
-            className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
+            className={`hidden md:flex flex-shrink-0 w-12 h-12 rounded-full items-center justify-center transition-all cursor-pointer active:scale-95 ${
               isInterviewStarted && !isLoading && !isProcessingAudio
                 ? 'bg-dark-600 hover:bg-dark-500 text-gray-300 hover:text-white border border-cyber-500/30 hover:border-cyber-500/50 hover:shadow-glow-sm'
                 : 'bg-dark-700 text-gray-600 cursor-not-allowed'
@@ -169,17 +182,17 @@ export default function InputArea({
             onChange={(e) => setInputValue(e.target.value)}
             placeholder={
               isInterviewStarted
-                ? '답변을 입력하거나 마이크 버튼을 눌러주세요...'
-                : '먼저 면접을 시작해주세요'
+                ? '답변을 입력하세요...'
+                : '면접을 시작해주세요'
             }
             disabled={!isInterviewStarted || isLoading || isProcessingAudio}
-            onKeyPress={(e) => {
+            onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSubmit(e);
               }
             }}
-            className="flex-1 px-4 py-4 bg-transparent border-0 outline-none text-gray-100 placeholder-gray-500 disabled:text-gray-600 focus:placeholder-gray-400 transition-colors text-base"
+            className="flex-1 min-w-0 px-2 md:px-4 py-3 md:py-4 bg-transparent border-0 outline-none text-gray-100 placeholder-gray-500 disabled:text-gray-600 focus:placeholder-gray-400 transition-colors text-sm md:text-base"
           />
 
           {/* 전송 버튼 */}
@@ -192,16 +205,16 @@ export default function InputArea({
               isLoading ||
               isProcessingAudio
             }
-            className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+            className={`flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${
               inputValue.trim() && isInterviewStarted && !isLoading && !isProcessingAudio
                 ? 'bg-gradient-to-r from-neon-cyan to-cyber-500 text-white shadow-glow-cyan hover:shadow-lg'
                 : 'bg-dark-600 text-gray-500 cursor-not-allowed'
             }`}
           >
             {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
             ) : (
-              <Send className="w-5 h-5" />
+              <Send className="w-4 h-4 md:w-5 md:h-5" />
             )}
           </button>
         </div>

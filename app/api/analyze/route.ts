@@ -1,3 +1,6 @@
+/**
+ * @deprecated 이 API는 /api/analyze/stream으로 대체되었습니다. 삭제 예정.
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { ANALYSIS_SYSTEM_PROMPT } from '@/lib/prompts';

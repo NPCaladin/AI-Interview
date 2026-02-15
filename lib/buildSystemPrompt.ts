@@ -1,4 +1,4 @@
-import { InterviewData } from './utils';
+import type { InterviewData } from './types';
 import { 기술질문없는직군 } from './constants';
 import { filterQuestionsByCompany, removeCompanyTagFromQuestion } from './utils';
 

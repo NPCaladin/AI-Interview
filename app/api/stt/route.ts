@@ -20,7 +20,7 @@ interface STTRequest {
 async function transcribeWithWhisper(audioBuffer: Buffer): Promise<{ text: string; raw_data: any }> {
   try {
     // Create a File-like object from buffer
-    const file = new File([audioBuffer], 'audio.wav', { type: 'audio/wav' });
+    const file = new File([new Uint8Array(audioBuffer)], 'audio.wav', { type: 'audio/wav' });
     
     const transcript = await openai.audio.transcriptions.create({
       model: 'whisper-1',
@@ -69,7 +69,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
 
     // Node.js fetch 내장 FormData/Blob 사용
     const formData = new FormData();
-    const fileBlob = new Blob([audioBuffer], { type: 'audio/wav' });
+    const fileBlob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/wav' });
     formData.append('file', fileBlob, 'audio.wav');
 
     const response = await fetch(baseUrl, {
@@ -112,6 +112,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
     console.log(`[Daglo STT] Step 1 완료 - rid: ${rid}`);
 
     // Step 2: 상태 확인 루프 (GET & Loop) - Smart Backoff
+    const MAX_POLL_ATTEMPTS = 60;
     const statusUrl = `${baseUrl}/${rid}`;
     const maxWaitTime = DAGLO_MAX_WAIT_TIME * 1000; // ms로 변환
     let pollInterval = DAGLO_INITIAL_POLL_INTERVAL * 1000; // ms로 변환
@@ -120,7 +121,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
 
     console.log(`[Daglo STT] Step 2: 상태 확인 시작 - ${statusUrl}`);
 
-    while (true) {
+    while (pollCount < MAX_POLL_ATTEMPTS) {
       const elapsedTime = Date.now() - startTime;
       pollCount += 1;
 
@@ -164,6 +165,8 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
       } else if (status === 'failed' || status === 'error') {
         throw new Error(pollData.error || `상태: ${status}`);
       } else {
+        // 알 수 없는 상태 — 계속 폴링하되 최대 횟수 제한으로 보호
+        console.warn(`[Daglo STT] 알 수 없는 상태: ${status}, 폴링 계속...`);
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
         pollInterval = Math.min(
           DAGLO_MAX_POLL_INTERVAL * 1000,
@@ -171,6 +174,10 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
         );
         continue;
       }
+    }
+
+    if (pollCount >= MAX_POLL_ATTEMPTS) {
+      throw new Error(`최대 폴링 횟수(${MAX_POLL_ATTEMPTS}회)를 초과했습니다.`);
     }
 
     // Step 3: 결과 파싱
@@ -195,7 +202,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
     }
 
     if (transcriptParts.length === 0) {
-      throw new Error('transcript 텍스트가 없습니다.');
+      throw new Error('음성이 인식되지 않았습니다. 마이크에 대고 더 크고 명확하게 말씀해주세요.');
     }
 
     const transcribedText = transcriptParts.join(' ');
@@ -210,15 +217,30 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
 
 export async function POST(request: NextRequest) {
   try {
-    const body: STTRequest = await request.json();
-    const { audio, stt_model = 'OpenAI Whisper' } = body;
+    let audioBuffer: Buffer;
+    let stt_model: 'OpenAI Whisper' | 'Daglo' = 'OpenAI Whisper';
 
-    if (!audio) {
-      return NextResponse.json({ error: 'audio 필드가 필요합니다.' }, { status: 400 });
+    const contentType = request.headers.get('content-type') || '';
+
+    if (contentType.includes('multipart/form-data')) {
+      // FormData 바이너리 전송 (효율적)
+      const formData = await request.formData();
+      const audioFile = formData.get('audio') as File | null;
+      if (!audioFile) {
+        return NextResponse.json({ error: 'audio 파일이 필요합니다.' }, { status: 400 });
+      }
+      audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+      stt_model = (formData.get('stt_model') as string as typeof stt_model) || 'OpenAI Whisper';
+    } else {
+      // JSON base64 전송 (레거시 호환)
+      const body: STTRequest = await request.json();
+      const { audio, stt_model: model = 'OpenAI Whisper' } = body;
+      if (!audio) {
+        return NextResponse.json({ error: 'audio 필드가 필요합니다.' }, { status: 400 });
+      }
+      audioBuffer = Buffer.from(audio, 'base64');
+      stt_model = model;
     }
-
-    // base64를 Buffer로 변환
-    const audioBuffer = Buffer.from(audio, 'base64');
 
     let result: { text: string; raw_data: any };
 
