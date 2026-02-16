@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 import { useDevMode } from '@/contexts/DevModeContext';
 import { getCurrentPhase } from '@/lib/utils';
 import type { InterviewData } from '@/lib/utils';
 import type { Message } from '@/lib/types';
+import { TOTAL_QUESTION_COUNT } from '@/lib/constants';
 
 interface UseInterviewOptions {
   sttModel: 'OpenAI Whisper' | 'Daglo';
@@ -190,6 +192,12 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       setMessages([...updatedMessages, assistantMessage]);
       setQuestionCount(newQuestionCount);
       setCurrentPhase(getCurrentPhase(newQuestionCount));
+
+      // Phase 4: 서버에서 면접 종료 신호를 받았거나 클라이언트에서 한도 도달
+      if (chatData.interview_ended || newQuestionCount >= TOTAL_QUESTION_COUNT) {
+        setIsInterviewStarted(false);
+        toast.success('면접이 종료되었습니다. 분석을 시작하세요.');
+      }
 
       // TTS
       const ttsResponse = await fetch('/api/tts', {

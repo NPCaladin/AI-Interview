@@ -9,6 +9,7 @@ interface InputAreaProps {
   onAudioInput?: (audioBlob: Blob) => void;
   isInterviewStarted?: boolean;
   isLoading?: boolean;
+  isInterviewEnded?: boolean;
 }
 
 export default function InputArea({
@@ -16,6 +17,7 @@ export default function InputArea({
   onAudioInput,
   isInterviewStarted = false,
   isLoading = false,
+  isInterviewEnded = false,
 }: InputAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -181,7 +183,9 @@ export default function InputArea({
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder={
-              isInterviewStarted
+              isInterviewEnded
+                ? '면접이 종료되었습니다. 분석을 시작하세요.'
+                : isInterviewStarted
                 ? '답변을 입력하세요...'
                 : '면접을 시작해주세요'
             }

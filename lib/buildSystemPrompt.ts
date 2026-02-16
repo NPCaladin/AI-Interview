@@ -1,6 +1,59 @@
 import type { InterviewData } from './types';
-import { 기술질문없는직군 } from './constants';
+import { 기술질문없는직군, INTERVIEWER_ROLE_RULE, FOLLOWUP_LIMITS } from './constants';
 import { filterQuestionsByCompany, removeCompanyTagFromQuestion } from './utils';
+import { buildUsedQuestionsBlocklist } from './questionDedup';
+import { extractConversationState, analyzeAnswerSpecificity } from './conversationState';
+
+/**
+ * 꼬리질문 결정 프롬프트 생성
+ */
+function buildFollowupDecisionPrompt(
+  messages: Array<{ role: string; content: string }>
+): string {
+  const state = extractConversationState(messages);
+
+  // 고정 질문(0~4)이면 꼬리질문 제어 불필요
+  if (state.mainQuestionIndex <= 4) return '';
+
+  // 마지막 user 답변의 구체성 분석
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
+  const specificity = lastUserMsg
+    ? analyzeAnswerSpecificity(lastUserMsg.content)
+    : 50;
+
+  let instruction = '';
+
+  if (state.followupCount >= FOLLOWUP_LIMITS.max_per_topic - 1) {
+    // 꼬리질문 한도 도달 → 강제 주제 전환
+    instruction = `
+## [꼬리질문 한도 도달 - 강제 주제 전환] ⚠️
+
+같은 주제로 이미 ${state.followupCount}회 꼬리질문을 했습니다.
+**반드시 완전히 다른 주제의 새로운 질문을 하세요.**
+이전 주제와 관련된 어떤 질문도 하지 마세요. 전혀 다른 역량 영역(게임 센스, 데이터 분석, 협업, 사업 이해, 기술 역량, 문제 해결)에서 질문하세요.
+`;
+  } else if (state.lowEffortStreak >= FOLLOWUP_LIMITS.low_effort_tolerance) {
+    // 성의 없는 답변 연속 → 주제 전환
+    instruction = `
+## [성의 없는 답변 감지 - 주제 전환]
+
+지원자가 ${state.lowEffortStreak}회 연속 짧거나 성의 없는 답변을 했습니다.
+이 주제를 더 이상 파고들지 말고, **완전히 다른 주제로 전환하세요.**
+"알겠습니다. 그럼 다른 주제로 넘어가겠습니다."라고 전환하세요.
+`;
+  } else if (specificity < 70 && state.followupCount < FOLLOWUP_LIMITS.max_per_topic - 1) {
+    // 구체성 부족 → 꼬리질문 지시
+    instruction = `
+## [답변 구체성 부족 - 꼬리질문 권장]
+
+지원자의 답변이 구체적이지 않습니다 (구체성 점수: ${specificity}/100).
+**이전 답변의 논리적 허점이나 모호한 부분을 파고드는 꼬리질문을 하세요.**
+구체적인 수치, 사례, 경험을 요구하세요.
+`;
+  }
+
+  return instruction;
+}
 
 export function buildSystemPrompt(
   interviewData: InterviewData,
@@ -8,7 +61,8 @@ export function buildSystemPrompt(
   selectedCompany: string,
   questionCount: number,
   resumeText?: string,
-  overridePrompt?: string
+  overridePrompt?: string,
+  messages?: Array<{ role: string; content: string }>
 ): string {
   const commonCriteria = (interviewData.공통_평가_기준 || [])
     .map((c) => `- ${c}`)
@@ -56,9 +110,9 @@ export function buildSystemPrompt(
 ${resumeText}
 
 ## [자소서 활용 규칙]
-- 전체 면접(약 20문항) 동안 **최소 3문항 이상**은 자소서 기반 질문을 하세요. (직무/인성 단계 구분 없이 가능)
+- 전체 면접(약 12문항) 동안 **최소 2문항 이상**은 자소서 기반 질문을 하세요. (직무/인성 단계 구분 없이 가능)
 - 자소서 기반 질문을 던질 때는 자소서에 언급된 키워드/경험/수치/역할/기간 중 1개 이상을 짚고, 그 근거로 검증 질문을 하세요.
-- 면접 진행 중 스스로 자소서 기반 질문 횟수를 마음속으로 세고, 3회 이상 되도록 주기적으로 시도하세요.
+- 면접 진행 중 스스로 자소서 기반 질문 횟수를 마음속으로 세고, 2회 이상 되도록 주기적으로 시도하세요.
 - 자소서가 없으면 이 규칙을 무시하세요.
 `
     : '';
@@ -106,7 +160,7 @@ ${resumeText}
 
 ⚠️ 절대 다른 질문을 하지 마세요. 위 질문만 정확히 하세요.
 `;
-  } else if (questionCount >= 5 && questionCount <= 14) {
+  } else if (questionCount >= 5 && questionCount <= 8) {
     const is기술질문없는직군 = 기술질문없는직군.includes(selectedJob);
 
     if (is기술질문없는직군) {
@@ -174,7 +228,7 @@ ${resumeText}
 `;
       }
     }
-  } else if (questionCount >= 15 && questionCount <= 18) {
+  } else if (questionCount >= 9 && questionCount <= 10) {
     const commonQuestionsData = interviewData.공통_인성_질문 || {};
     const personalityQuestions: string[] = [
       ...(commonQuestionsData.조직적합도 || []),
@@ -182,7 +236,7 @@ ${resumeText}
     ];
 
     if (personalityQuestions.length > 0) {
-      const questionIndex = questionCount - 15;
+      const questionIndex = questionCount - 9;
       const selectedQuestion =
         personalityQuestions[questionIndex % personalityQuestions.length];
 
@@ -214,7 +268,7 @@ ${resumeText}
 4. 질문을 할 때는 이전 대화 맥락과 자연스럽게 연결하세요.
 `;
     }
-  } else if (questionCount >= 19) {
+  } else if (questionCount >= 11) {
     stageInstruction = `
 ## [시나리오 통제] 지금은 마지막 질문입니다.
 
@@ -342,7 +396,21 @@ ${resumeText}
 - (지원자가 리니지 언급 안 함) 
 - → 수정 질문: "MMORPG 장르의 경쟁 게임 중 하나를 선택해서 장단점을 분석해보세요."`;
 
+  // Phase 1: 질문 블랙리스트 생성 (전체 messages 기반)
+  const questionBlocklist = messages && messages.length > 0
+    ? buildUsedQuestionsBlocklist(messages)
+    : '';
+
+  // Phase 3: 꼬리질문 결정 프롬프트 생성
+  const followupDecision = messages && messages.length > 0
+    ? buildFollowupDecisionPrompt(messages)
+    : '';
+
   const systemPrompt = `
+${questionBlocklist}
+
+${INTERVIEWER_ROLE_RULE}
+
 ${companyInstruction}
 
 당신은 10년 차 '${selectedJob}' 직군 면접관입니다.
@@ -357,6 +425,8 @@ ${personaAndRulesSection}
     - 필수 키워드: ${keywords}
 
 ${stageInstruction}
+
+${followupDecision}
 `;
 
   return systemPrompt;

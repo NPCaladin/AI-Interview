@@ -202,3 +202,14 @@ export interface STARAnalysis {
   recommendation: string;
   grade: string;
 }
+
+// ========================================
+// 대화 상태 추적 타입
+// ========================================
+
+export interface ConversationState {
+  followupCount: number;       // 같은 주제 연속 꼬리질문 수
+  lastQuestionTopic: string;   // 마지막 질문 주제
+  lowEffortStreak: number;     // 성의 없는 답변 연속 횟수
+  mainQuestionIndex: number;   // 현재 메인 질문 인덱스
+}

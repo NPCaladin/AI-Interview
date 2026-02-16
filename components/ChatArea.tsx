@@ -4,6 +4,7 @@ import { useRef, useEffect } from 'react';
 import { UserCircle, Bot, Play, Terminal, Wifi, Signal, Volume2, Mic } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Message } from '@/lib/types';
+import { TOTAL_QUESTION_COUNT } from '@/lib/constants';
 
 interface ChatAreaProps {
   messages: Message[];
@@ -12,6 +13,7 @@ interface ChatAreaProps {
   onStartInterview?: () => void;
   selectedJob?: string;
   selectedCompany?: string;
+  questionCount?: number;
 }
 
 // 타이핑 효과 도트 애니메이션
@@ -322,6 +324,7 @@ export default function ChatArea({
   onStartInterview,
   selectedJob = '',
   selectedCompany = '',
+  questionCount = 0,
 }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -353,13 +356,26 @@ export default function ChatArea({
         />
       ) : (
         <div className="p-3 md:p-6 space-y-4 md:space-y-6 max-w-4xl mx-auto">
-          {/* 세션 시작 표시 */}
+          {/* 세션 시작 표시 + 진행률 */}
           <div className="flex items-center justify-center gap-2 md:gap-4 py-2 md:py-4">
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#00F2FF]/20 to-transparent" />
             <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1 md:py-1.5 bg-dark-700/50 rounded-full border border-[#00F2FF]/20">
               <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-[#00ff88] rounded-full animate-pulse" />
               <span className="text-[8px] md:text-[10px] font-mono text-gray-500 tracking-wider">SESSION STARTED</span>
             </div>
+            {questionCount > 0 && (
+              <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1 md:py-1.5 bg-dark-700/50 rounded-full border border-[#8b5cf6]/20">
+                <span className="text-[8px] md:text-[10px] font-mono text-[#8b5cf6] tracking-wider">
+                  Q {Math.min(questionCount, TOTAL_QUESTION_COUNT)}/{TOTAL_QUESTION_COUNT}
+                </span>
+                <div className="w-12 md:w-16 h-1 bg-dark-600 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#00F2FF] to-[#8b5cf6] rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min((questionCount / TOTAL_QUESTION_COUNT) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b5cf6]/20 to-transparent" />
           </div>
 

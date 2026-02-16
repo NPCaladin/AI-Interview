@@ -29,16 +29,12 @@ export function removeCompanyTagFromQuestion(question: string): string {
 }
 
 export function getCurrentPhase(questionCount: number): string {
-  if (questionCount === 0) {
+  if (questionCount >= 0 && questionCount <= 4) {
     return "intro";
-  } else if (questionCount >= 1 && questionCount <= 4) {
-    return "intro";
-  } else if (questionCount >= 5 && questionCount <= 14) {
+  } else if (questionCount >= 5 && questionCount <= 8) {
     return "job";
-  } else if (questionCount >= 15 && questionCount <= 18) {
+  } else if (questionCount >= 9 && questionCount <= 10) {
     return "personality";
-  } else if (questionCount >= 19) {
-    return "closing";
   } else {
     return "closing";
   }

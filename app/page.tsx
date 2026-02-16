@@ -236,6 +236,7 @@ export default function Home() {
                 onStartInterview={handleStartInterview}
                 selectedJob={selectedJob}
                 selectedCompany={selectedCompany}
+                questionCount={questionCount}
               />
 
               <InputArea
@@ -243,6 +244,7 @@ export default function Home() {
                 onAudioInput={handleAudioInput}
                 isInterviewStarted={isInterviewStarted}
                 isLoading={isLoading}
+                isInterviewEnded={!isInterviewStarted && messages.length > 0 && questionCount >= TOTAL_QUESTION_COUNT}
               />
             </div>
 
