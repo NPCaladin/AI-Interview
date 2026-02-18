@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Upload, Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { MAX_USER_INPUT_LENGTH } from '@/lib/constants';
 
 interface InputAreaProps {
   onSendMessage?: (message: string) => void;
@@ -178,26 +179,36 @@ export default function InputArea({
           </label>
 
           {/* 텍스트 입력창 */}
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={
-              isInterviewEnded
-                ? '면접이 종료되었습니다. 분석을 시작하세요.'
-                : isInterviewStarted
-                ? '답변을 입력하세요...'
-                : '면접을 시작해주세요'
-            }
-            disabled={!isInterviewStarted || isLoading || isProcessingAudio}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
+          <div className="flex-1 min-w-0 relative">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              maxLength={MAX_USER_INPUT_LENGTH}
+              placeholder={
+                isInterviewEnded
+                  ? '면접이 종료되었습니다. 분석을 시작하세요.'
+                  : isInterviewStarted
+                  ? '답변을 입력하세요...'
+                  : '면접을 시작해주세요'
               }
-            }}
-            className="flex-1 min-w-0 px-2 md:px-4 py-3 md:py-4 bg-transparent border-0 outline-none text-gray-100 placeholder-gray-500 disabled:text-gray-600 focus:placeholder-gray-400 transition-colors text-sm md:text-base"
-          />
+              disabled={!isInterviewStarted || isLoading || isProcessingAudio}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+              className="w-full px-2 md:px-4 py-3 md:py-4 bg-transparent border-0 outline-none text-gray-100 placeholder-gray-500 disabled:text-gray-600 focus:placeholder-gray-400 transition-colors text-sm md:text-base"
+            />
+            {inputValue.length > MAX_USER_INPUT_LENGTH * 0.8 && (
+              <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${
+                inputValue.length >= MAX_USER_INPUT_LENGTH ? 'text-red-400' : 'text-gray-400'
+              }`}>
+                {inputValue.length}/{MAX_USER_INPUT_LENGTH}
+              </span>
+            )}
+          </div>
 
           {/* 전송 버튼 */}
           <button

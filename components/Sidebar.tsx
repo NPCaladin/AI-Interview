@@ -25,9 +25,12 @@ import {
   Lock,
   Unlock,
   X,
+  LogOut,
+  User,
 } from 'lucide-react';
 import { 사무직군, 개발직군, COMPANY_LIST } from '@/lib/constants';
 import { useDevMode } from '@/contexts/DevModeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { PROMPT_PRESETS } from '@/lib/prompts';
 
 interface SidebarProps {
@@ -335,6 +338,7 @@ export default function Sidebar({
   isMobileOpen = false,
   onMobileClose,
 }: SidebarProps) {
+  const { authHeaders, usage, student, logout: authLogout, refreshUsage } = useAuth();
   const [jobCategory, setJobCategory] = useState<'사무직군' | '개발직군'>('사무직군');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [dagloKeyExists, setDagloKeyExists] = useState<boolean | null>(null);
@@ -352,18 +356,23 @@ export default function Sidebar({
     }
   };
 
+  // 사용량 새로고침
+  useEffect(() => {
+    refreshUsage();
+  }, [refreshUsage]);
+
   // Daglo API 키 존재 여부 확인
   useEffect(() => {
     if (sttModel === 'Daglo') {
       setDagloKeyExists(null);
-      fetch('/api/check-env?key=DAGLO_API_KEY')
+      fetch('/api/check-env?key=DAGLO_API_KEY', { headers: authHeaders() })
         .then((res) => res.ok ? res.json() : Promise.reject())
         .then((data) => setDagloKeyExists(!data.error && data.exists))
         .catch(() => setDagloKeyExists(false));
     } else {
       setDagloKeyExists(null);
     }
-  }, [sttModel]);
+  }, [sttModel, authHeaders]);
 
   return (
     <>
@@ -540,9 +549,19 @@ export default function Sidebar({
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
+                  // 파일 크기 제한 (1MB)
+                  if (file.size > 1024 * 1024) {
+                    alert('파일이 너무 큽니다. 1MB 이하의 파일만 업로드 가능합니다.');
+                    e.target.value = '';
+                    return;
+                  }
                   const reader = new FileReader();
                   reader.onload = () => {
-                    const text = typeof reader.result === 'string' ? reader.result : '';
+                    let text = typeof reader.result === 'string' ? reader.result : '';
+                    // 자소서 텍스트 길이 제한 (10,000자)
+                    if (text.length > 10000) {
+                      text = text.slice(0, 10000);
+                    }
                     onResumeUpload?.(text);
                     setHasResume(true);
                   };
@@ -653,6 +672,54 @@ export default function Sidebar({
 
         {/* 개발자 모드 */}
         <DevModeSection />
+
+        {/* 사용량 & 사용자 정보 */}
+        {usage && student && (
+          <div className="mt-4 p-3 bg-dark-700/50 rounded-xl border border-dark-600/50 space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-mono text-gray-500 tracking-widest">WEEKLY USAGE</span>
+                <span className="text-xs font-mono text-[#00F2FF]">
+                  {usage.remaining}/{usage.limit}
+                </span>
+              </div>
+              <div className="w-full bg-dark-600 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${(usage.remaining / usage.limit) * 100}%`,
+                    background: usage.remaining <= 1
+                      ? 'linear-gradient(90deg, #ef4444, #f97316)'
+                      : 'linear-gradient(90deg, #00D9A5, #00F2FF)',
+                    boxShadow: usage.remaining <= 1
+                      ? '0 0 8px rgba(239,68,68,0.5)'
+                      : '0 0 8px rgba(0,242,255,0.5)',
+                  }}
+                />
+              </div>
+              {usage.remaining === 0 && (
+                <p className="mt-1.5 text-[10px] text-red-400">
+                  이번 주 면접 횟수를 모두 사용했습니다.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-dark-600/50">
+              <div className="flex items-center gap-2 min-w-0">
+                <User className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                <span className="text-xs text-gray-400 truncate">
+                  {student.name} ({student.code})
+                </span>
+              </div>
+              <button
+                onClick={authLogout}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-gray-500 hover:text-red-400 rounded transition-colors flex-shrink-0"
+              >
+                <LogOut className="w-3 h-3" />
+                LOGOUT
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 구분선 */}
         <div className="my-5 relative">

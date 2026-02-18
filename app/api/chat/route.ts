@@ -5,10 +5,12 @@ import type { InterviewData } from '@/lib/types';
 import { FALLBACK_SYSTEM_PROMPT } from '@/lib/prompts';
 import { getInterviewData } from '@/lib/serverInterviewData';
 import { checkDuplicateQuestion } from '@/lib/questionDedup';
-import { TOTAL_QUESTION_COUNT } from '@/lib/constants';
+import { TOTAL_QUESTION_COUNT, MAX_USER_INPUT_LENGTH, CHAT_API_TIMEOUT } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: CHAT_API_TIMEOUT,
 });
 
 // 면접 종료 메시지
@@ -48,9 +50,58 @@ export async function POST(request: NextRequest) {
       resume_text,
     } = body;
 
+    // question_count 범위 검증
+    const safeQuestionCount = Math.max(0, Math.min(question_count, TOTAL_QUESTION_COUNT + 10));
+
+    // 면접 시작 시 사용량 소진
+    let usageRemaining: number | undefined;
+    if (is_first) {
+      const studentId = request.headers.get('x-student-id');
+      if (!studentId) {
+        return NextResponse.json(
+          { error: '인증이 필요합니다.' },
+          { status: 401 }
+        );
+      }
+
+      const { data: usageResult, error: rpcError } = await supabase
+        .rpc('consume_usage', { p_student_id: studentId });
+
+      if (rpcError || usageResult === null || usageResult === undefined) {
+        console.error('[Chat API] Usage RPC error:', rpcError || 'null response');
+        return NextResponse.json(
+          { error: '사용량 확인에 실패했습니다.' },
+          { status: 500 }
+        );
+      }
+
+      if (!usageResult.success) {
+        const errorCode = usageResult?.error;
+        if (errorCode === 'WEEKLY_LIMIT_REACHED') {
+          return NextResponse.json(
+            { error: '이번 주 면접 횟수를 모두 사용했습니다.', code: 'WEEKLY_LIMIT_REACHED' },
+            { status: 429 }
+          );
+        }
+        if (errorCode === 'INACTIVE') {
+          return NextResponse.json(
+            { error: '비활성화된 계정입니다.', code: 'INACTIVE' },
+            { status: 403 }
+          );
+        }
+        return NextResponse.json(
+          { error: '사용량 확인에 실패했습니다.' },
+          { status: 500 }
+        );
+      }
+
+      usageRemaining = usageResult.remaining;
+      console.log(`[Chat API] Usage consumed. Remaining: ${usageRemaining}`);
+    }
+
     // Phase 4: 서버사이드 강제 종료
-    if (question_count >= TOTAL_QUESTION_COUNT) {
-      console.log(`[Chat API] 면접 종료 (question_count ${question_count} >= ${TOTAL_QUESTION_COUNT})`);
+    if (safeQuestionCount >= TOTAL_QUESTION_COUNT) {
+      console.log(`[Chat API] 면접 종료 (question_count ${safeQuestionCount} >= ${TOTAL_QUESTION_COUNT})`);
       return NextResponse.json(
         {
           message: INTERVIEW_END_MESSAGE,
@@ -72,6 +123,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 마지막 사용자 메시지 길이 검증
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    if (lastUserMsg && lastUserMsg.content.length > MAX_USER_INPUT_LENGTH) {
+      return NextResponse.json(
+        { error: `입력이 너무 깁니다. 최대 ${MAX_USER_INPUT_LENGTH}자까지 입력 가능합니다.` },
+        { status: 400 }
+      );
+    }
+
     // API Key 확인
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -88,7 +148,7 @@ export async function POST(request: NextRequest) {
         console.log('[Chat API] 동적 시스템 프롬프트 생성:', {
           selected_job,
           selected_company,
-          question_count,
+          question_count: safeQuestionCount,
           hasOverride: !!config?.systemPrompt,
           totalMessages: messages.length,
         });
@@ -96,7 +156,7 @@ export async function POST(request: NextRequest) {
           interview_data,
           selected_job,
           selected_company,
-          question_count,
+          safeQuestionCount,
           resume_text,
           config?.systemPrompt,
           messages // Phase 1, 2, 3: 전체 메시지 전달 (블랙리스트, 꼬리질문 결정에 사용)
@@ -175,7 +235,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 고정 질문(0~4)이면 중복 검사 스킵
-      if (question_count <= 4 || is_first) {
+      if (safeQuestionCount <= 4 || is_first) {
         assistantMessage = responseText;
         finalCompletion = completion;
         break;
@@ -230,6 +290,7 @@ export async function POST(request: NextRequest) {
       {
         message: assistantMessage,
         role: 'assistant',
+        ...(usageRemaining !== undefined && { remaining: usageRemaining }),
         ...(config && {
           _meta: {
             latency,
@@ -248,6 +309,13 @@ export async function POST(request: NextRequest) {
     console.error('Chat API 오류:', error);
 
     if (error instanceof Error) {
+      // 타임아웃 에러 분기
+      if (error.message.includes('timeout') || error.message.includes('Timeout') || error.message.includes('ETIMEDOUT')) {
+        return NextResponse.json(
+          { error: 'AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.' },
+          { status: 504 }
+        );
+      }
       return NextResponse.json(
         { error: `채팅 생성 실패: ${error.message}` },
         { status: 500 }

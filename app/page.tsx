@@ -9,14 +9,17 @@ import Header from '@/components/Header';
 import ReportView from '@/components/ReportView';
 import LogPanel from '@/components/LogPanel';
 import { useDevMode } from '@/contexts/DevModeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { TOTAL_QUESTION_COUNT } from '@/lib/constants';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { useInterview } from '@/hooks/useInterview';
 import { useStreamingAnalysis } from '@/hooks/useStreamingAnalysis';
 import { toast } from 'sonner';
+import AuthScreen from '@/components/AuthScreen';
 
 export default function Home() {
   const { isDevMode } = useDevMode();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [sttModel, setSttModel] = useState<'OpenAI Whisper' | 'Daglo'>('OpenAI Whisper');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -89,6 +92,21 @@ export default function Home() {
     personality: '인성 면접',
     closing: '마무리',
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#00F2FF]/30 border-t-[#00F2FF] rounded-full animate-spin" />
+          <p className="text-sm text-gray-400 font-mono">LOADING...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthScreen />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

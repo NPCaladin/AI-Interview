@@ -6,10 +6,13 @@ import {
   DAGLO_INITIAL_POLL_INTERVAL,
   DAGLO_MAX_POLL_INTERVAL,
   DAGLO_BACKOFF_MULTIPLIER,
+  MAX_AUDIO_FILE_SIZE,
+  STT_API_TIMEOUT,
 } from '@/lib/constants';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: STT_API_TIMEOUT,
 });
 
 interface STTRequest {
@@ -222,6 +225,15 @@ export async function POST(request: NextRequest) {
 
     const contentType = request.headers.get('content-type') || '';
 
+    // Content-Length 사전 체크 (버퍼 할당 전 거부)
+    const contentLength = parseInt(request.headers.get('content-length') || '0', 10);
+    if (contentLength > MAX_AUDIO_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `오디오 파일이 너무 큽니다. 최대 ${MAX_AUDIO_FILE_SIZE / (1024 * 1024)}MB까지 허용됩니다.` },
+        { status: 413 }
+      );
+    }
+
     if (contentType.includes('multipart/form-data')) {
       // FormData 바이너리 전송 (효율적)
       const formData = await request.formData();
@@ -240,6 +252,14 @@ export async function POST(request: NextRequest) {
       }
       audioBuffer = Buffer.from(audio, 'base64');
       stt_model = model;
+    }
+
+    // 오디오 파일 크기 검증
+    if (audioBuffer.length > MAX_AUDIO_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `오디오 파일이 너무 큽니다. 최대 ${MAX_AUDIO_FILE_SIZE / (1024 * 1024)}MB까지 허용됩니다.` },
+        { status: 413 }
+      );
     }
 
     let result: { text: string; raw_data: any };

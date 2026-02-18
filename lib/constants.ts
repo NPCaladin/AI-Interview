@@ -1,5 +1,17 @@
 // 면접 설정
 export const TOTAL_QUESTION_COUNT = 12; // 총 질문 수
+export const DEFAULT_WEEKLY_LIMIT = 5; // 주간 면접 횟수 제한
+
+// ========================================
+// 안전 장치 상수
+// ========================================
+export const MAX_USER_INPUT_LENGTH = 2000;        // 사용자 텍스트 입력 최대 글자 수
+export const MAX_TTS_TEXT_LENGTH = 4000;           // TTS 입력 최대 (OpenAI 한도 4096)
+export const MAX_AUDIO_FILE_SIZE = 10 * 1024 * 1024; // 오디오 파일 최대 10MB
+export const CHAT_API_TIMEOUT = 30_000;            // Chat API 타임아웃 (ms)
+export const TTS_API_TIMEOUT = 15_000;             // TTS API 타임아웃 (ms)
+export const STT_API_TIMEOUT = 30_000;             // STT API 타임아웃 (ms)
+export const CLIENT_FETCH_TIMEOUT = 35_000;        // 클라이언트 fetch 타임아웃 (ms)
 
 // 회사 목록
 export const COMPANY_LIST = [
