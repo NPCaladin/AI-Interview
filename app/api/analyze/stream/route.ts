@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
+import { logger } from '@/lib/logger';
 import { SUMMARY_ANALYSIS_PROMPT, DETAIL_ANALYSIS_PROMPT, chunkQuestionNumbers, tagConversation } from '@/lib/prompts-stream';
 import { analyzeMultipleAnswers } from '@/lib/starAnalyzer';
 import type { SSEEventType } from '@/lib/types';
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
               worstAnswer: starAnalysisResult.worstAnswer,
             }, 15);
           } catch (err) {
-            console.warn('STAR 분석 스킵:', err);
+            logger.warn('STAR 분석 스킵:', err);
             sendSSE(controller, 'star_check', { skipped: true }, 15);
           }
 
@@ -97,9 +98,14 @@ ${taggedConversation}
                 { role: 'user', content: summaryUserPrompt },
               ],
               temperature: 0.3,
-              max_tokens: 4000,
+              max_tokens: 8000,
               response_format: { type: 'json_object' },
             });
+
+            const finishReason = summaryResponse.choices[0].finish_reason;
+            if (finishReason === 'length') {
+              logger.warn('[분석] 종합 분석 토큰 한도 도달 — 응답이 잘렸을 수 있음');
+            }
 
             const summaryText = summaryResponse.choices[0].message.content;
             if (summaryText) {
@@ -118,7 +124,7 @@ ${taggedConversation}
               sendSSE(controller, 'summary', summaryResult, 40);
             }
           } catch (err) {
-            console.error('종합 분석 오류:', err);
+            logger.error('종합 분석 오류:', err);
             sendSSE(controller, 'error', { message: '종합 분석 중 오류가 발생했습니다.' }, 40);
             controller.close();
             return;
@@ -129,7 +135,7 @@ ${taggedConversation}
           const allDetailedFeedback: unknown[] = [];
           const analyzedQuestions = new Set<number>(); // 분석 완료된 질문 추적
 
-          console.log(`[분석] 총 ${questionCount}개 질문, ${questionChunks.length}개 청크로 분할:`, questionChunks);
+          logger.debug(`[분석] 총 ${questionCount}개 질문, ${questionChunks.length}개 청크로 분할:`, questionChunks);
 
           for (let chunkIndex = 0; chunkIndex < questionChunks.length; chunkIndex++) {
             const questionNumbers = questionChunks[chunkIndex];
@@ -167,8 +173,12 @@ ${taggedConversation}
                   response_format: { type: 'json_object' },
                 });
 
+                if (detailResponse.choices[0].finish_reason === 'length') {
+                  logger.warn(`[분석] 청크 ${chunkIndex} 토큰 한도 도달 — 응답이 잘렸을 수 있음`);
+                }
+
                 const detailText = detailResponse.choices[0].message.content;
-                console.log(`[분석] 청크 ${chunkIndex} 응답 길이:`, detailText?.length || 0);
+                logger.debug(`[분석] 청크 ${chunkIndex} 응답 길이:`, detailText?.length || 0);
 
                 if (detailText) {
                   const detailResult = JSON.parse(detailText);
@@ -189,18 +199,18 @@ ${taggedConversation}
                       }
                     });
 
-                    console.log(`[분석] 청크 ${chunkIndex} 성공: ${feedbackArray.length}개 질문 분석됨`);
+                    logger.debug(`[분석] 청크 ${chunkIndex} 성공: ${feedbackArray.length}개 질문 분석됨`);
                     break; // 성공 시 루프 탈출
                   } else {
-                    console.warn(`[분석] 청크 ${chunkIndex} 응답에 피드백 배열 없음, 재시도 ${retryCount + 1}/${maxRetries}`);
+                    logger.warn(`[분석] 청크 ${chunkIndex} 응답에 피드백 배열 없음, 재시도 ${retryCount + 1}/${maxRetries}`);
                     retryCount++;
                   }
                 } else {
-                  console.warn(`[분석] 청크 ${chunkIndex} 빈 응답, 재시도 ${retryCount + 1}/${maxRetries}`);
+                  logger.warn(`[분석] 청크 ${chunkIndex} 빈 응답, 재시도 ${retryCount + 1}/${maxRetries}`);
                   retryCount++;
                 }
               } catch (err) {
-                console.error(`[분석] 청크 ${chunkIndex} 오류 (재시도 ${retryCount + 1}/${maxRetries}):`, err);
+                logger.error(`[분석] 청크 ${chunkIndex} 오류 (재시도 ${retryCount + 1}/${maxRetries}):`, err);
                 retryCount++;
 
                 if (retryCount > maxRetries) {
@@ -233,9 +243,9 @@ ${taggedConversation}
           }
 
           if (missingQuestions.length > 0) {
-            console.warn(`[분석] ⚠️ 누락된 질문: Q${missingQuestions.join(', Q')}`);
+            logger.warn(`[분석] ⚠️ 누락된 질문: Q${missingQuestions.join(', Q')}`);
           } else {
-            console.log(`[분석] ✅ 모든 ${questionCount}개 질문 분석 완료`);
+            logger.debug(`[분석] ✅ 모든 ${questionCount}개 질문 분석 완료`);
           }
 
           // 5. 완료 - 질문 번호 순으로 정렬
@@ -253,11 +263,11 @@ ${taggedConversation}
             },
           };
 
-          console.log(`[분석] 최종 결과: ${sortedFeedback.length}/${questionCount}개 질문 분석됨`);
+          logger.debug(`[분석] 최종 결과: ${sortedFeedback.length}/${questionCount}개 질문 분석됨`);
           sendSSE(controller, 'complete', finalResult, 100);
           controller.close();
         } catch (err) {
-          console.error('스트리밍 분석 오류:', err);
+          logger.error('스트리밍 분석 오류:', err);
           sendSSE(controller, 'error', { message: err instanceof Error ? err.message : '알 수 없는 오류' }, 0);
           controller.close();
         }
@@ -272,7 +282,7 @@ ${taggedConversation}
       },
     });
   } catch (error) {
-    console.error('Analyze Stream API 오류:', error);
+    logger.error('Analyze Stream API 오류:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : '서버 오류' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }

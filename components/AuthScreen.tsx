@@ -52,8 +52,8 @@ export default function AuthScreen() {
                 <Cpu className="w-10 h-10 text-[#00F2FF] drop-shadow-[0_0_10px_rgba(0,242,255,0.8)]" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-wide mb-1">ENENI INTERVIEW</h1>
-            <p className="text-xs font-mono text-[#00F2FF]/60 tracking-[0.2em]">STUDENT AUTHENTICATION</p>
+            <h1 className="text-2xl font-bold text-white tracking-wide mb-1">EvenI 면접 연습</h1>
+            <p className="text-xs font-mono text-[#00F2FF]/60 tracking-[0.2em]">수강생 인증</p>
           </div>
 
           {/* 폼 */}
@@ -61,14 +61,14 @@ export default function AuthScreen() {
             <div>
               <label className="block text-xs font-mono text-gray-400 mb-2 tracking-wider">
                 <Shield className="w-3 h-3 inline mr-1.5" />
-                STUDENT CODE
+                수강생 코드
               </label>
               <input
                 type="text"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 maxLength={20}
-                placeholder="STU-A3X9"
+                placeholder="V0000000"
                 autoFocus
                 disabled={isSubmitting}
                 className="w-full px-4 py-3.5 bg-dark-700/80 border border-dark-500 rounded-xl text-white text-lg font-mono tracking-widest placeholder:text-gray-600 focus:border-[#00F2FF]/60 focus:outline-none focus:shadow-[0_0_20px_rgba(0,242,255,0.15)] transition-all duration-300 disabled:opacity-50"
@@ -104,12 +104,12 @@ export default function AuthScreen() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>VERIFYING...</span>
+                  <span>확인 중...</span>
                 </>
               ) : (
                 <>
                   <Shield className="w-5 h-5" />
-                  <span>AUTHENTICATE</span>
+                  <span>로그인</span>
                 </>
               )}
             </button>

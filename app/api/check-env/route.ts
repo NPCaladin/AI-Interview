@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+
+// 확인 가능한 환경변수 화이트리스트
+const ALLOWED_KEYS = ['DAGLO_API_KEY', 'OPENAI_API_KEY'];
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +12,13 @@ export async function GET(request: NextRequest) {
     if (!key) {
       return NextResponse.json(
         { error: 'key 파라미터가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    if (!ALLOWED_KEYS.includes(key)) {
+      return NextResponse.json(
+        { error: '허용되지 않는 키입니다.' },
         { status: 400 }
       );
     }
@@ -26,7 +37,7 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: any) {
-    console.error('환경 변수 확인 오류:', error);
+    logger.error('[Check-env] 오류');
     return NextResponse.json(
       { error: `환경 변수 확인 실패: ${error.message || '알 수 없는 오류'}` },
       { status: 500 }

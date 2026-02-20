@@ -169,6 +169,7 @@ export default function InputArea({
           />
           <label
             htmlFor="audio-file-input"
+            aria-label="오디오 파일 업로드"
             className={`hidden md:flex flex-shrink-0 w-12 h-12 rounded-full items-center justify-center transition-all cursor-pointer active:scale-95 ${
               isInterviewStarted && !isLoading && !isProcessingAudio
                 ? 'bg-dark-600 hover:bg-dark-500 text-gray-300 hover:text-white border border-cyber-500/30 hover:border-cyber-500/50 hover:shadow-glow-sm'
@@ -220,6 +221,7 @@ export default function InputArea({
               isLoading ||
               isProcessingAudio
             }
+            aria-label="답변 전송"
             className={`flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${
               inputValue.trim() && isInterviewStarted && !isLoading && !isProcessingAudio
                 ? 'bg-gradient-to-r from-neon-cyan to-cyber-500 text-white shadow-glow-cyan hover:shadow-lg'

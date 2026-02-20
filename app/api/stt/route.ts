@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { logger } from '@/lib/logger';
 import {
   DAGLO_API_BASE_URL,
   DAGLO_MAX_WAIT_TIME,
@@ -41,17 +42,15 @@ async function transcribeWithWhisper(audioBuffer: Buffer): Promise<{ text: strin
 
     return { text: transcript.text, raw_data: rawData };
   } catch (error: any) {
-    console.error('Whisper STT 오류:', error);
+    logger.error('[Whisper STT] 오류');
     throw new Error(`음성 인식 오류: ${error.message || '알 수 없는 오류'}`);
   }
 }
 
 async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string; raw_data: any }> {
   const dagloApiKey = process.env.DAGLO_API_KEY;
-  console.log('[Daglo STT] 환경 변수 확인:', dagloApiKey ? '설정됨 (길이: ' + dagloApiKey.length + ')' : '설정되지 않음');
-  
   if (!dagloApiKey) {
-    throw new Error('DAGLO_API_KEY 환경 변수가 설정되지 않았습니다. .env.local 파일에 DAGLO_API_KEY를 추가하고 개발 서버를 재시작해주세요.');
+    throw new Error('DAGLO_API_KEY가 설정되지 않았습니다.');
   }
 
   const baseUrl = DAGLO_API_BASE_URL;
@@ -68,7 +67,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
 
   try {
     // Step 1: 작업 요청 (POST) - rid 추출
-    console.log(`[Daglo STT] Step 1: 작업 요청 시작 - ${baseUrl}`);
+    logger.debug('[Daglo STT] Step 1: 작업 요청 시작');
 
     // Node.js fetch 내장 FormData/Blob 사용
     const formData = new FormData();
@@ -92,7 +91,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
       responseData = await response.json();
     } catch (parseError) {
       const text = await response.text();
-      console.error('[Daglo STT] JSON 파싱 실패:', text);
+      logger.error('[Daglo STT] JSON 파싱 실패');
       throw new Error(`API 응답 파싱 실패 (상태 코드: ${response.status}): ${text.substring(0, 200)}`);
     }
     
@@ -103,7 +102,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
 
     if (response.status !== 200 && response.status !== 201) {
       const errorMsg = responseData?.error || responseData?.message || `작업 요청 실패 (상태 코드: ${response.status})`;
-      console.error('[Daglo STT] API 오류 응답:', responseData);
+      logger.error('[Daglo STT] API 오류 응답:', response.status);
       throw new Error(`Daglo API 오류: ${errorMsg}`);
     }
 
@@ -112,7 +111,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
       throw new Error('rid (Request ID)를 받지 못했습니다.');
     }
 
-    console.log(`[Daglo STT] Step 1 완료 - rid: ${rid}`);
+    logger.debug('[Daglo STT] Step 1 완료');
 
     // Step 2: 상태 확인 루프 (GET & Loop) - Smart Backoff
     const MAX_POLL_ATTEMPTS = 60;
@@ -122,7 +121,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
     const startTime = Date.now();
     let pollCount = 0;
 
-    console.log(`[Daglo STT] Step 2: 상태 확인 시작 - ${statusUrl}`);
+    logger.debug('[Daglo STT] Step 2: 상태 확인 시작');
 
     while (pollCount < MAX_POLL_ATTEMPTS) {
       const elapsedTime = Date.now() - startTime;
@@ -139,7 +138,17 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
         headers,
       });
 
-      const pollData = await pollResponse.json().catch(() => ({}));
+      // HTTP 상태 코드 먼저 체크
+      if (!pollResponse.ok) {
+        throw new Error(`폴링 HTTP 오류 (상태 코드: ${pollResponse.status})`);
+      }
+
+      let pollData;
+      try {
+        pollData = await pollResponse.json();
+      } catch {
+        throw new Error(`폴링 응답 JSON 파싱 실패 (상태 코드: ${pollResponse.status})`);
+      }
 
       const pollLog = {
         poll_count: pollCount,
@@ -150,12 +159,10 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
       rawData.step2_polling.push(pollLog);
 
       const status = (pollData.status || '').toLowerCase();
-      console.log(
-        `[Daglo STT] Step 2 폴링 #${pollCount} - 경과 시간: ${Math.round(elapsedTime / 100) / 10}초, 상태: ${status}, 간격: ${pollInterval / 1000}초`
-      );
+      logger.debug(`[Daglo STT] 폴링 #${pollCount} - ${Math.round(elapsedTime / 100) / 10}초, 상태: ${status}`);
 
       if (status === 'transcribed') {
-        console.log(`[Daglo STT] Step 2 완료 - 상태: ${status}`);
+        logger.debug('[Daglo STT] Step 2 완료');
         rawData.step3_final_response = pollData;
         break;
       } else if (status === 'processing' || status === 'analysis') {
@@ -169,7 +176,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
         throw new Error(pollData.error || `상태: ${status}`);
       } else {
         // 알 수 없는 상태 — 계속 폴링하되 최대 횟수 제한으로 보호
-        console.warn(`[Daglo STT] 알 수 없는 상태: ${status}, 폴링 계속...`);
+        logger.warn(`[Daglo STT] 알 수 없는 상태: ${status}`);
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
         pollInterval = Math.min(
           DAGLO_MAX_POLL_INTERVAL * 1000,
@@ -184,7 +191,7 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
     }
 
     // Step 3: 결과 파싱
-    console.log(`[Daglo STT] Step 3: 결과 파싱 시작`);
+    logger.debug('[Daglo STT] Step 3: 결과 파싱');
 
     const finalResponse = rawData.step3_final_response;
     if (!finalResponse) {
@@ -209,11 +216,11 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
     }
 
     const transcribedText = transcriptParts.join(' ');
-    console.log(`[Daglo STT] Step 3 완료 - 변환된 텍스트 길이: ${transcribedText.length}자`);
+    logger.debug(`[Daglo STT] 완료 - ${transcribedText.length}자`);
 
     return { text: transcribedText, raw_data: rawData };
   } catch (error: any) {
-    console.error('[Daglo STT] 예외 발생:', error);
+    logger.error('[Daglo STT] 예외 발생:', error?.message);
     throw new Error(`Daglo STT 오류: ${error.message || '알 수 없는 오류'}`);
   }
 }
@@ -294,7 +301,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: any) {
-    console.error('STT API 오류:', error);
+    logger.error('[STT API] 오류:', error?.message);
     return NextResponse.json(
       { error: `STT 생성 실패: ${error.message || '알 수 없는 오류'}` },
       { status: 500 }

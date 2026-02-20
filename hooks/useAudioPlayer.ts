@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 
 export function useAudioPlayer() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [lastAudioPlayed, setLastAudioPlayed] = useState<string | null>(null);
   const [audioPlayFailed, setAudioPlayFailed] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -42,9 +41,14 @@ export function useAudioPlayer() {
     }
   }, [audioUrl]);
 
-  // Web Audio API 리소스 정리
+  // Web Audio API + audioUrl 리소스 정리 (언마운트 시)
   useEffect(() => {
     return () => {
+      // 오디오 URL 메모리 해제
+      setAudioUrl(prevUrl => {
+        if (prevUrl) URL.revokeObjectURL(prevUrl);
+        return null;
+      });
       sourceNodeRef.current?.disconnect();
       gainNodeRef.current?.disconnect();
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
@@ -72,7 +76,6 @@ export function useAudioPlayer() {
       if (prevUrl) URL.revokeObjectURL(prevUrl);
       return url;
     });
-    setLastAudioPlayed(null);
   }, []);
 
   const clearAudioUrl = useCallback(() => {
@@ -84,7 +87,6 @@ export function useAudioPlayer() {
 
   const resetAudio = useCallback(() => {
     clearAudioUrl();
-    setLastAudioPlayed(null);
     setAudioPlayFailed(false);
   }, [clearAudioUrl]);
 

@@ -52,7 +52,7 @@ function InterviewerMessage({ content, isLatest }: { content: string; isLatest: 
       <div className="flex-1 max-w-[85%] md:max-w-[80%]">
         {/* 헤더 */}
         <div className="flex items-center gap-2 mb-1.5 md:mb-2">
-          <span className="text-[10px] md:text-xs font-mono text-[#00F2FF] tracking-wider">INTERVIEWER</span>
+          <span className="text-[10px] md:text-xs font-mono text-[#00F2FF] tracking-wider">면접관</span>
           <div className="hidden md:flex items-center gap-1">
             <Signal className="w-3 h-3 text-[#00ff88]" />
             <span className="text-[10px] font-mono text-gray-500">AI</span>
@@ -87,7 +87,7 @@ function ApplicantMessage({ content }: { content: string }) {
         {/* 헤더 */}
         <div className="flex items-center gap-2 mb-1.5 md:mb-2 justify-end">
           <Mic className="hidden md:block w-3 h-3 text-[#8b5cf6]/50" />
-          <span className="text-[10px] md:text-xs font-mono text-[#8b5cf6] tracking-wider">APPLICANT</span>
+          <span className="text-[10px] md:text-xs font-mono text-[#8b5cf6] tracking-wider">지원자</span>
         </div>
 
         {/* 버블 */}
@@ -134,8 +134,8 @@ function LoadingMessage() {
       {/* 메시지 */}
       <div className="max-w-[85%] md:max-w-[80%]">
         <div className="flex items-center gap-2 mb-1.5 md:mb-2">
-          <span className="text-[10px] md:text-xs font-mono text-[#00F2FF] tracking-wider">INTERVIEWER</span>
-          <span className="text-[10px] font-mono text-[#00F2FF] animate-pulse">PROCESSING</span>
+          <span className="text-[10px] md:text-xs font-mono text-[#00F2FF] tracking-wider">면접관</span>
+          <span className="text-[10px] font-mono text-[#00F2FF] animate-pulse">처리 중</span>
         </div>
 
         <div className="relative bg-gradient-to-br from-dark-700/90 to-dark-800/90 backdrop-blur-md rounded-2xl rounded-tl-sm px-3 md:px-5 py-3 md:py-4 border border-[#00F2FF]/20">
@@ -221,7 +221,7 @@ function EmptyState({
         <div className="text-center mb-6 md:mb-10">
           <div className="flex items-center justify-center gap-2 mb-3 md:mb-4">
             <Wifi className="w-3 h-3 md:w-4 md:h-4 text-[#00ff88] animate-pulse" />
-            <span className="text-[10px] md:text-xs font-mono text-[#00ff88] tracking-[0.2em] md:tracking-[0.3em]">SYSTEM READY</span>
+            <span className="text-[10px] md:text-xs font-mono text-[#00ff88] tracking-[0.2em] md:tracking-[0.3em]">시스템 준비 완료</span>
           </div>
 
           <h2 className="text-2xl md:text-4xl font-bold mb-3 md:mb-4 tracking-tight">
@@ -259,8 +259,8 @@ function EmptyState({
                   <Play className="w-4 h-4 md:w-5 md:h-5 text-dark-900 fill-current" />
                 </div>
                 <div className="text-left">
-                  <div className="text-[8px] md:text-[10px] text-dark-900/60 tracking-[0.15em] md:tracking-[0.2em] font-mono">INITIALIZE</div>
-                  <div className="text-sm md:text-lg font-bold text-dark-900 tracking-wide">START INTERVIEW</div>
+                  <div className="text-[8px] md:text-[10px] text-dark-900/60 tracking-[0.15em] md:tracking-[0.2em] font-mono">START</div>
+                  <div className="text-sm md:text-lg font-bold text-dark-900 tracking-wide">면접 시작하기</div>
                 </div>
                 <div className="ml-2 md:ml-4 text-xl md:text-2xl text-dark-900/60 font-light">»</div>
               </div>
@@ -361,7 +361,7 @@ export default function ChatArea({
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#00F2FF]/20 to-transparent" />
             <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1 md:py-1.5 bg-dark-700/50 rounded-full border border-[#00F2FF]/20">
               <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-[#00ff88] rounded-full animate-pulse" />
-              <span className="text-[8px] md:text-[10px] font-mono text-gray-500 tracking-wider">SESSION STARTED</span>
+              <span className="text-[8px] md:text-[10px] font-mono text-gray-500 tracking-wider">세션 시작</span>
             </div>
             {questionCount > 0 && (
               <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1 md:py-1.5 bg-dark-700/50 rounded-full border border-[#8b5cf6]/20">

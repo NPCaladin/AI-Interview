@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { verifyToken } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
       .rpc('get_weekly_remaining', { p_student_id: payload.studentId });
 
     if (rpcError || !usageData?.success) {
-      console.error('[Auth Remaining] Usage RPC error:', rpcError || usageData);
+      logger.error('[Auth Remaining] Usage RPC error:', rpcError || usageData);
       return NextResponse.json(
         { error: '사용량 조회에 실패했습니다.' },
         { status: 500 }
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
       used: usageData.used,
     });
   } catch (error) {
-    console.error('[Auth Remaining] Error:', error);
+    logger.error('[Auth Remaining] Error:', error);
     return NextResponse.json(
       { error: '사용량 조회 중 오류가 발생했습니다.' },
       { status: 500 }

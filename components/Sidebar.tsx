@@ -431,7 +431,7 @@ export default function Sidebar({
               </div>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-wide">MISSION CONFIG</h2>
+              <h2 className="text-lg font-bold text-white tracking-wide">면접 준비</h2>
               <p className="text-[10px] font-mono text-[#00F2FF]/60 tracking-[0.2em]">INTERVIEW SETUP v2.0</p>
             </div>
           </div>
@@ -448,7 +448,7 @@ export default function Sidebar({
             <SectionHeader
               icon={Gamepad2}
               title="직군 카테고리"
-              subtitle="SELECT DIVISION"
+              subtitle="직군 카테고리"
               status={jobCategory ? 'complete' : 'active'}
               glowColor="cyan"
             />
@@ -473,7 +473,7 @@ export default function Sidebar({
             <SectionHeader
               icon={Target}
               title="지원 직군"
-              subtitle="SELECT POSITION"
+              subtitle="지원 직군"
               status={selectedJob ? 'complete' : jobCategory ? 'active' : 'locked'}
               glowColor="purple"
             />
@@ -491,7 +491,7 @@ export default function Sidebar({
             <SectionHeader
               icon={Building2}
               title="지원 회사"
-              subtitle="SELECT COMPANY"
+              subtitle="지원 회사"
               status={selectedCompany ? 'complete' : selectedJob ? 'active' : 'locked'}
               glowColor="green"
             />
@@ -514,7 +514,7 @@ export default function Sidebar({
               <div className="relative">
                 <div className="flex items-center gap-2 mb-3">
                   <Shield className="w-4 h-4 text-[#00ff88] drop-shadow-[0_0_8px_rgba(0,255,136,0.8)]" />
-                  <span className="text-xs font-mono text-[#00ff88] tracking-wider">MISSION READY</span>
+                  <span className="text-xs font-mono text-[#00ff88] tracking-wider">준비 완료</span>
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2 text-sm">
@@ -537,7 +537,7 @@ export default function Sidebar({
             <SectionHeader
               icon={Upload}
               title="자소서 업로드"
-              subtitle="OPTIONAL DATA"
+              subtitle="선택 항목"
               status={hasResume ? 'complete' : 'active'}
               glowColor="pink"
             />
@@ -605,7 +605,7 @@ export default function Sidebar({
           >
             <span className="flex items-center gap-2">
               <Settings className="w-4 h-4 text-[#00F2FF]" />
-              <span className="font-mono tracking-wider text-xs">ADVANCED</span>
+              <span className="font-mono tracking-wider text-xs">고급 설정</span>
             </span>
             <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${showAdvanced ? 'rotate-180' : ''}`} />
           </button>
@@ -613,7 +613,7 @@ export default function Sidebar({
           {showAdvanced && (
             <div className="mt-3 p-4 bg-dark-700/50 rounded-xl border border-dark-600 space-y-4">
               <div>
-                <label className="block text-xs font-mono text-gray-400 mb-2 tracking-wider">STT MODEL</label>
+                <label className="block text-xs font-mono text-gray-400 mb-2 tracking-wider">음성 인식 모델</label>
                 <div className="space-y-2">
                   {['OpenAI Whisper', 'Daglo'].map((model) => (
                     <label
@@ -659,7 +659,7 @@ export default function Sidebar({
         {/* API 상태 */}
         <div className="mt-4 p-3 bg-dark-700/30 rounded-lg border border-dark-600/50">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-gray-500 tracking-widest">SYSTEM STATUS</span>
+            <span className="text-[10px] font-mono text-gray-500 tracking-widest">시스템 상태</span>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <div className="w-2 h-2 bg-[#00ff88] rounded-full" />
@@ -670,15 +670,15 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* 개발자 모드 */}
-        <DevModeSection />
+        {/* 개발자 모드 (로컬 전용) */}
+        {process.env.NEXT_PUBLIC_DEV_MODE_ENABLED === 'true' && <DevModeSection />}
 
         {/* 사용량 & 사용자 정보 */}
         {usage && student && (
           <div className="mt-4 p-3 bg-dark-700/50 rounded-xl border border-dark-600/50 space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-mono text-gray-500 tracking-widest">WEEKLY USAGE</span>
+                <span className="text-[10px] font-mono text-gray-500 tracking-widest">주간 사용량</span>
                 <span className="text-xs font-mono text-[#00F2FF]">
                   {usage.remaining}/{usage.limit}
                 </span>
@@ -715,7 +715,7 @@ export default function Sidebar({
                 className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-gray-500 hover:text-red-400 rounded transition-colors flex-shrink-0"
               >
                 <LogOut className="w-3 h-3" />
-                LOGOUT
+                로그아웃
               </button>
             </div>
           </div>
@@ -725,7 +725,7 @@ export default function Sidebar({
         <div className="my-5 relative">
           <div className="h-px bg-gradient-to-r from-transparent via-[#00F2FF]/30 to-transparent" />
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-3 bg-dark-800">
-            <span className="text-[10px] font-mono text-[#00F2FF]/50 tracking-[0.3em]">ACTION</span>
+            <span className="text-[10px] font-mono text-[#00F2FF]/50 tracking-[0.3em]">실행</span>
           </div>
         </div>
 
@@ -737,7 +737,7 @@ export default function Sidebar({
             variant="primary"
             icon={Play}
           >
-            {isInterviewStarted ? 'IN PROGRESS...' : !selectedJob || !selectedCompany ? 'SELECT OPTIONS' : 'START INTERVIEW'}
+            {isInterviewStarted ? '진행 중...' : !selectedJob || !selectedCompany ? '직군/회사를 선택하세요' : '면접 시작'}
           </ActionButton>
 
           <ActionButton
@@ -745,7 +745,7 @@ export default function Sidebar({
             variant="secondary"
             icon={RotateCcw}
           >
-            RESET
+            초기화
           </ActionButton>
 
           <ActionButton
@@ -755,7 +755,7 @@ export default function Sidebar({
             icon={FileCheck}
             loading={isAnalyzing}
           >
-            {isAnalyzing ? 'ANALYZING...' : 'END & ANALYZE'}
+            {isAnalyzing ? '분석 중...' : '종료 후 분석'}
           </ActionButton>
 
           {/* 경고 메시지 */}

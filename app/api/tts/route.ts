@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { logger } from '@/lib/logger';
 import { MAX_TTS_TEXT_LENGTH, TTS_API_TIMEOUT } from '@/lib/constants';
 
 const openai = new OpenAI({
@@ -10,7 +11,15 @@ const openai = new OpenAI({
 export async function POST(request: NextRequest) {
   try {
     // 요청 본문에서 text 추출
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: '잘못된 요청 형식입니다.' },
+        { status: 400 }
+      );
+    }
     const { text } = body;
 
     // text 유효성 검사
@@ -33,7 +42,7 @@ export async function POST(request: NextRequest) {
     const isTruncated = text.length > MAX_TTS_TEXT_LENGTH;
     const ttsInput = isTruncated ? text.slice(0, MAX_TTS_TEXT_LENGTH) : text;
     if (isTruncated) {
-      console.warn(`[TTS API] 텍스트 잘림: ${text.length}자 → ${MAX_TTS_TEXT_LENGTH}자`);
+      logger.warn(`[TTS API] 텍스트 잘림: ${text.length}자 → ${MAX_TTS_TEXT_LENGTH}자`);
     }
 
     // OpenAI TTS API 호출
@@ -55,7 +64,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('TTS API 오류:', error);
+    logger.error('[TTS API] 오류:', error instanceof Error ? error.message : 'unknown');
     
     // OpenAI API 오류 처리
     if (error instanceof Error) {

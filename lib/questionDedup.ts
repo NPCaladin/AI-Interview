@@ -4,6 +4,7 @@
  * - 키워드/명사 기반 유사도 비교
  * - 블랙리스트 생성
  */
+import { MAX_BLOCKLIST_QUESTIONS } from './constants';
 
 // 불용어 목록 (한국어)
 const STOP_WORDS = new Set([
@@ -159,8 +160,8 @@ export function buildUsedQuestionsBlocklist(
 
   if (usedQuestions.length === 0) return '';
 
-  // 최대 15개까지만 표시 (프롬프트 길이 제한)
-  const displayQuestions = usedQuestions.slice(-15);
+  // 최대 N개까지만 표시 (프롬프트 길이 제한)
+  const displayQuestions = usedQuestions.slice(-MAX_BLOCKLIST_QUESTIONS);
 
   const blocklist = displayQuestions
     .map((q, i) => `  ${i + 1}. "${q}"`)

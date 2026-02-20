@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { signToken } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
   try {
-    const { code } = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: '잘못된 요청 형식입니다.' },
+        { status: 400 }
+      );
+    }
+    const { code } = body;
 
     if (!code || typeof code !== 'string') {
       return NextResponse.json(
@@ -41,7 +51,7 @@ export async function POST(request: NextRequest) {
       .rpc('get_weekly_remaining', { p_student_id: student.id });
 
     if (rpcError || !usageData?.success) {
-      console.error('[Auth Verify] Usage RPC error:', rpcError || usageData);
+      logger.error('[Auth Verify] Usage RPC error:', rpcError || usageData);
       return NextResponse.json(
         { error: '사용량 조회에 실패했습니다.' },
         { status: 500 }
@@ -69,7 +79,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[Auth Verify] Error:', error);
+    logger.error('[Auth Verify] Error:', error);
     return NextResponse.json(
       { error: '인증 처리 중 오류가 발생했습니다.' },
       { status: 500 }

@@ -5,8 +5,9 @@ import type { InterviewData } from '@/lib/types';
 import { FALLBACK_SYSTEM_PROMPT } from '@/lib/prompts';
 import { getInterviewData } from '@/lib/serverInterviewData';
 import { checkDuplicateQuestion } from '@/lib/questionDedup';
-import { TOTAL_QUESTION_COUNT, MAX_USER_INPUT_LENGTH, CHAT_API_TIMEOUT } from '@/lib/constants';
+import { TOTAL_QUESTION_COUNT, MAX_USER_INPUT_LENGTH, CHAT_API_TIMEOUT, MAX_CONTEXT_MESSAGES } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -38,7 +39,15 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const body: ChatRequest = await request.json();
+    let body: ChatRequest;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: '잘못된 요청 형식입니다.' },
+        { status: 400 }
+      );
+    }
     const {
       messages,
       interview_data: clientInterviewData,
@@ -68,7 +77,7 @@ export async function POST(request: NextRequest) {
         .rpc('consume_usage', { p_student_id: studentId });
 
       if (rpcError || usageResult === null || usageResult === undefined) {
-        console.error('[Chat API] Usage RPC error:', rpcError || 'null response');
+        logger.error('[Chat API] Usage RPC error');
         return NextResponse.json(
           { error: '사용량 확인에 실패했습니다.' },
           { status: 500 }
@@ -96,12 +105,12 @@ export async function POST(request: NextRequest) {
       }
 
       usageRemaining = usageResult.remaining;
-      console.log(`[Chat API] Usage consumed. Remaining: ${usageRemaining}`);
+      logger.info(`[Chat API] Usage consumed. Remaining: ${usageRemaining}`);
     }
 
     // Phase 4: 서버사이드 강제 종료
     if (safeQuestionCount >= TOTAL_QUESTION_COUNT) {
-      console.log(`[Chat API] 면접 종료 (question_count ${safeQuestionCount} >= ${TOTAL_QUESTION_COUNT})`);
+      logger.info(`[Chat API] 면접 종료 (question_count ${safeQuestionCount})`);
       return NextResponse.json(
         {
           message: INTERVIEW_END_MESSAGE,
@@ -145,13 +154,7 @@ export async function POST(request: NextRequest) {
 
     try {
       if (interview_data && selected_job && selected_company !== undefined) {
-        console.log('[Chat API] 동적 시스템 프롬프트 생성:', {
-          selected_job,
-          selected_company,
-          question_count: safeQuestionCount,
-          hasOverride: !!config?.systemPrompt,
-          totalMessages: messages.length,
-        });
+        logger.debug('[Chat API] 동적 시스템 프롬프트 생성');
         systemPrompt = buildSystemPrompt(
           interview_data,
           selected_job,
@@ -162,11 +165,11 @@ export async function POST(request: NextRequest) {
           messages // Phase 1, 2, 3: 전체 메시지 전달 (블랙리스트, 꼬리질문 결정에 사용)
         );
       } else {
-        console.log('[Chat API] 기본 시스템 프롬프트 사용');
+        logger.debug('[Chat API] 기본 시스템 프롬프트 사용');
         systemPrompt = config?.systemPrompt || FALLBACK_SYSTEM_PROMPT;
       }
     } catch (error) {
-      console.error('[Chat API] 시스템 프롬프트 생성 오류:', error);
+      logger.error('[Chat API] 시스템 프롬프트 생성 오류');
       systemPrompt = config?.systemPrompt || FALLBACK_SYSTEM_PROMPT;
     }
 
@@ -182,7 +185,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Phase 5: 슬라이딩 윈도우 확대 (-10 → -16, 약 8턴)
-      const recentMessages = messages.slice(-16);
+      const recentMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
       for (const msg of recentMessages) {
         conversationMessages.push({
           role: msg.role,
@@ -192,12 +195,10 @@ export async function POST(request: NextRequest) {
     }
 
     // OpenAI Chat API 호출
-    console.log('[Chat API] OpenAI API 호출 시작, 메시지 수:', conversationMessages.length);
+    logger.debug('[Chat API] OpenAI API 호출 시작, 메시지 수:', conversationMessages.length);
 
     const baseTemperature = config?.temperature ?? 0.9;
     const maxTokens = config?.maxTokens ?? 500;
-
-    console.log('[Chat API] API 파라미터:', { temperature: baseTemperature, maxTokens, hasCustomSystemPrompt: !!config?.systemPrompt });
 
     // Phase 1: 중복 검증 + 재시도 루프
     let assistantMessage: string | null = null;
@@ -214,10 +215,10 @@ export async function POST(request: NextRequest) {
           temperature: currentTemperature,
           max_tokens: maxTokens,
         });
-        console.log('[Chat API] OpenAI API 응답 받음 (시도:', retryCount + 1, ')');
+        logger.debug('[Chat API] OpenAI API 응답 받음 (시도:', retryCount + 1, ')');
       } catch (openaiError: unknown) {
         const errorMessage = openaiError instanceof Error ? openaiError.message : '알 수 없는 오류';
-        console.error('[Chat API] OpenAI API 오류:', openaiError);
+        logger.error('[Chat API] OpenAI API 오류');
         return NextResponse.json(
           { error: `OpenAI API 오류: ${errorMessage}` },
           { status: 500 }
@@ -227,7 +228,7 @@ export async function POST(request: NextRequest) {
       const responseText = completion.choices[0]?.message?.content;
 
       if (!responseText) {
-        console.error('[Chat API] AI 답변이 비어있음:', completion);
+        logger.error('[Chat API] AI 답변이 비어있음');
         return NextResponse.json(
           { error: 'AI 답변 생성에 실패했습니다. 응답이 비어있습니다.' },
           { status: 500 }
@@ -253,11 +254,11 @@ export async function POST(request: NextRequest) {
 
       // 중복 감지 → 재시도
       retryCount++;
-      console.log(`[Chat API] 중복 질문 감지 (시도 ${retryCount}/${MAX_DEDUP_RETRIES}):`, duplicatedWith);
+      logger.debug(`[Chat API] 중복 질문 감지 (시도 ${retryCount}/${MAX_DEDUP_RETRIES})`);
 
       if (retryCount > MAX_DEDUP_RETRIES) {
         // 재시도 한도 초과 → 마지막 응답 그대로 사용
-        console.log('[Chat API] 재시도 한도 초과, 마지막 응답 사용');
+        logger.debug('[Chat API] 재시도 한도 초과, 마지막 응답 사용');
         assistantMessage = responseText;
         finalCompletion = completion;
         break;
@@ -281,10 +282,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[Chat API] AI 답변 생성 완료, 길이:', assistantMessage.length, retryCount > 0 ? `(재시도 ${retryCount}회)` : '');
+    logger.debug('[Chat API] AI 답변 생성 완료, 길이:', assistantMessage.length);
 
     const latency = Date.now() - startTime;
-    console.log('[Chat API] 총 응답 시간:', latency, 'ms');
+    logger.debug('[Chat API] 총 응답 시간:', latency, 'ms');
 
     return NextResponse.json(
       {
@@ -306,7 +307,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Chat API 오류:', error);
+    logger.error('[Chat API] 오류:', error instanceof Error ? error.message : 'unknown');
 
     if (error instanceof Error) {
       // 타임아웃 에러 분기

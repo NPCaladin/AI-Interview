@@ -1,6 +1,8 @@
 // 면접 설정
 export const TOTAL_QUESTION_COUNT = 12; // 총 질문 수
 export const DEFAULT_WEEKLY_LIMIT = 5; // 주간 면접 횟수 제한
+export const MAX_CONTEXT_MESSAGES = 16; // Chat API 슬라이딩 윈도우 크기
+export const MAX_BLOCKLIST_QUESTIONS = 15; // 중복 방지 블랙리스트 최대 표시 수
 
 // ========================================
 // 안전 장치 상수

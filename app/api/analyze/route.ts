@@ -3,6 +3,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { logger } from '@/lib/logger';
 import { ANALYSIS_SYSTEM_PROMPT } from '@/lib/prompts';
 
 const openai = new OpenAI({
@@ -134,7 +135,7 @@ ${conversationText}
             { role: 'user', content: userPrompt },
           ],
           temperature: 0.3,
-          max_tokens: 4000,
+          max_tokens: 12000,
           response_format: { type: 'json_object' },
         });
       } catch (error) {
@@ -146,8 +147,12 @@ ${conversationText}
             { role: 'user', content: userPrompt },
           ],
           temperature: 0.3,
-          max_tokens: 4000,
+          max_tokens: 12000,
         });
+      }
+
+      if (response.choices[0].finish_reason === 'length') {
+        logger.warn('[Analyze] 토큰 한도 도달 — 응답이 잘렸을 수 있음');
       }
 
       const resultText = response.choices[0].message.content;
@@ -162,10 +167,13 @@ ${conversationText}
       } catch (parseError) {
         // JSON 파싱 실패 시 텍스트에서 JSON 추출 시도
         const jsonMatch = resultText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          result = JSON.parse(jsonMatch[0]) as AnalyzeResult;
-        } else {
+        if (!jsonMatch) {
           throw new Error('JSON 형식의 응답을 찾을 수 없습니다.');
+        }
+        try {
+          result = JSON.parse(jsonMatch[0]) as AnalyzeResult;
+        } catch {
+          throw new Error('추출된 JSON 파싱에 실패했습니다. 다시 시도해주세요.');
         }
       }
 
@@ -176,14 +184,14 @@ ${conversationText}
 
       return NextResponse.json(result, { status: 200 });
     } catch (error: any) {
-      console.error('면접 분석 오류:', error);
+      logger.error('면접 분석 오류:', error);
       return NextResponse.json(
         { error: `면접 분석 실패: ${error.message || '알 수 없는 오류'}` },
         { status: 500 }
       );
     }
   } catch (error: any) {
-    console.error('Analyze API 오류:', error);
+    logger.error('Analyze API 오류:', error);
     return NextResponse.json(
       { error: `서버 오류: ${error.message || '알 수 없는 오류'}` },
       { status: 500 }
