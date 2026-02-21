@@ -217,10 +217,24 @@ export async function POST(request: NextRequest) {
         });
         logger.debug('[Chat API] OpenAI API 응답 받음 (시도:', retryCount + 1, ')');
       } catch (openaiError: unknown) {
-        const errorMessage = openaiError instanceof Error ? openaiError.message : '알 수 없는 오류';
         logger.error('[Chat API] OpenAI API 오류');
+        if (openaiError instanceof OpenAI.APIError) {
+          if (openaiError.status === 429) {
+            return NextResponse.json(
+              { error: 'AI 서버가 현재 혼잡합니다. 잠시 후 다시 시도해주세요.' },
+              { status: 429 }
+            );
+          }
+          if (openaiError.status >= 500) {
+            return NextResponse.json(
+              { error: 'AI 서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.' },
+              { status: 502 }
+            );
+          }
+        }
+        const errorMessage = openaiError instanceof Error ? openaiError.message : '알 수 없는 오류';
         return NextResponse.json(
-          { error: `OpenAI API 오류: ${errorMessage}` },
+          { error: `AI 응답 생성 오류: ${errorMessage}` },
           { status: 500 }
         );
       }

@@ -275,13 +275,22 @@ export async function POST(request: NextRequest) {
       // Daglo 사용 시 DAGLO_API_KEY 확인
       if (!process.env.DAGLO_API_KEY) {
         return NextResponse.json(
-          { 
-            error: 'DAGLO_API_KEY 환경 변수가 설정되지 않았습니다. .env.local 파일에 DAGLO_API_KEY를 추가하고 개발 서버를 재시작해주세요.' 
+          {
+            error: 'DAGLO_API_KEY 환경 변수가 설정되지 않았습니다. .env.local 파일에 DAGLO_API_KEY를 추가하고 개발 서버를 재시작해주세요.'
           },
           { status: 500 }
         );
       }
-      result = await transcribeWithDaglo(audioBuffer);
+      // Daglo 실패 시 1회 재시도 (네트워크 일시 장애 대응)
+      try {
+        result = await transcribeWithDaglo(audioBuffer);
+      } catch (firstError: any) {
+        const isVoiceUnrecognized = firstError?.message?.includes('음성이 인식되지 않았습니다');
+        if (isVoiceUnrecognized) throw firstError; // 음성 인식 실패는 재시도 불필요
+        logger.warn('[STT API] Daglo 1차 실패, 3초 후 재시도:', firstError?.message);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        result = await transcribeWithDaglo(audioBuffer); // 2차 시도, 실패 시 그대로 throw
+      }
     } else {
       // Whisper 사용 시 OPENAI_API_KEY 확인
       if (!process.env.OPENAI_API_KEY) {
