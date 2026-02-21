@@ -163,7 +163,12 @@ function EmptyState({
 }) {
   const handleStartClick = () => {
     if (!selectedJob || !selectedCompany) {
-      toast.error('좌측 사이드바에서 직군 카테고리, 지원 직군, 회사를 모두 선택해주세요.');
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      toast.error(
+        isMobile
+          ? '우상단 ☰ 메뉴를 열어 직군과 회사를 선택해주세요.'
+          : '좌측 사이드바에서 직군 카테고리, 지원 직군, 회사를 모두 선택해주세요.'
+      );
       return;
     }
     onStartInterview?.();
@@ -230,7 +235,7 @@ function EmptyState({
           </h2>
 
           <p className="text-gray-300 max-w-sm md:max-w-md leading-relaxed text-xs md:text-sm px-2">
-            <span className="md:hidden">메뉴에서 직군과 회사를 선택 후 시작하세요</span>
+            <span className="md:hidden">우상단 ☰ 메뉴에서 직군과 회사를 선택하세요</span>
             <span className="hidden md:inline">
               좌측 패널에서 <span className="text-[#00F2FF] font-medium">직군</span>과{' '}
               <span className="text-[#8b5cf6] font-medium">회사</span>를 선택한 후<br />

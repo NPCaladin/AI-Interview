@@ -25,7 +25,7 @@ export default function Home() {
 
   const {
     audioUrl, audioPlayFailed, audioRef, handleManualAudioPlay,
-    updateAudioUrl, clearAudioUrl, resetAudio,
+    unlockAudio, updateAudioUrl, clearAudioUrl, resetAudio,
   } = useAudioPlayer();
 
   const {
@@ -260,6 +260,7 @@ export default function Home() {
               <InputArea
                 onSendMessage={handleSendMessage}
                 onAudioInput={handleAudioInput}
+                onUnlockAudio={unlockAudio}
                 isInterviewStarted={isInterviewStarted}
                 isLoading={isLoading}
                 isInterviewEnded={!isInterviewStarted && messages.length > 0 && questionCount >= TOTAL_QUESTION_COUNT}

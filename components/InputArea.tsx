@@ -8,6 +8,7 @@ import { MAX_USER_INPUT_LENGTH } from '@/lib/constants';
 interface InputAreaProps {
   onSendMessage?: (message: string) => void;
   onAudioInput?: (audioBlob: Blob) => void;
+  onUnlockAudio?: () => void;
   isInterviewStarted?: boolean;
   isLoading?: boolean;
   isInterviewEnded?: boolean;
@@ -16,6 +17,7 @@ interface InputAreaProps {
 export default function InputArea({
   onSendMessage,
   onAudioInput,
+  onUnlockAudio,
   isInterviewStarted = false,
   isLoading = false,
   isInterviewEnded = false,
@@ -38,9 +40,10 @@ export default function InputArea({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    onUnlockAudio?.(); // iOS Safari AudioContext 잠금 해제
 
     if (!isInterviewStarted) {
-      toast.error('먼저 좌측 사이드바에서 "면접 시작" 버튼을 눌러주세요.');
+      toast.error('먼저 우상단 ☰ 메뉴에서 직군/회사를 선택 후 면접을 시작해주세요.');
       return;
     }
 
@@ -52,7 +55,7 @@ export default function InputArea({
 
   const startRecording = async () => {
     if (!isInterviewStarted) {
-      toast.error('먼저 좌측 사이드바에서 "면접 시작" 버튼을 눌러주세요.');
+      toast.error('먼저 우상단 ☰ 메뉴에서 직군/회사를 선택 후 면접을 시작해주세요.');
       return;
     }
 
@@ -103,6 +106,7 @@ export default function InputArea({
   };
 
   const handleMicClick = () => {
+    onUnlockAudio?.(); // iOS Safari AudioContext 잠금 해제
     if (isRecording) {
       stopRecording();
     } else {
@@ -115,7 +119,7 @@ export default function InputArea({
     if (!file) return;
 
     if (!isInterviewStarted) {
-      toast.error('먼저 좌측 사이드바에서 "면접 시작" 버튼을 눌러주세요.');
+      toast.error('먼저 우상단 ☰ 메뉴에서 직군/회사를 선택 후 면접을 시작해주세요.');
       return;
     }
 
