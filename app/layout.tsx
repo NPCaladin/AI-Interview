@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Orbitron } from "next/font/google";
 import "./globals.css";
 import { DevModeProvider } from "@/contexts/DevModeContext";
@@ -10,6 +10,12 @@ const orbitron = Orbitron({
   variable: "--font-orbitron",
   display: "swap",
 });
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
 
 export const metadata: Metadata = {
   title: "EvenI 면접 연습",

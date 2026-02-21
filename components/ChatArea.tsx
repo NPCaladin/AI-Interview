@@ -49,13 +49,13 @@ function InterviewerMessage({ content, isLatest }: { content: string; isLatest: 
       </div>
 
       {/* 메시지 버블 */}
-      <div className="flex-1 max-w-[85%] md:max-w-[80%]">
+      <div className="flex-1 max-w-[90%] sm:max-w-[85%] md:max-w-[80%]">
         {/* 헤더 */}
         <div className="flex items-center gap-2 mb-1.5 md:mb-2">
-          <span className="text-[10px] md:text-xs font-mono text-[#00F2FF] tracking-wider">면접관</span>
+          <span className="text-xs font-semibold text-[#00F2FF] tracking-normal">면접관</span>
           <div className="hidden md:flex items-center gap-1">
             <Signal className="w-3 h-3 text-[#00ff88]" />
-            <span className="text-[10px] font-mono text-gray-500">AI</span>
+            <span className="text-xs font-mono text-gray-400">AI</span>
           </div>
         </div>
 
@@ -70,7 +70,7 @@ function InterviewerMessage({ content, isLatest }: { content: string; isLatest: 
             <div className="hidden md:block absolute top-0 right-0 w-4 h-4 border-t border-r border-[#00F2FF]/30 rounded-tr-2xl" />
             <div className="hidden md:block absolute bottom-0 left-0 w-4 h-4 border-b border-l border-[#8b5cf6]/30 rounded-bl-2xl" />
 
-            <p className="text-xs md:text-sm leading-relaxed text-gray-200 whitespace-pre-wrap">{content}</p>
+            <p className="text-sm leading-relaxed text-gray-100 whitespace-pre-wrap">{content}</p>
           </div>
         </div>
       </div>
@@ -83,11 +83,11 @@ function ApplicantMessage({ content }: { content: string }) {
   return (
     <div className="flex items-start gap-2 md:gap-4 justify-end">
       {/* 메시지 버블 */}
-      <div className="max-w-[85%] md:max-w-[80%]">
+      <div className="max-w-[90%] sm:max-w-[85%] md:max-w-[80%]">
         {/* 헤더 */}
         <div className="flex items-center gap-2 mb-1.5 md:mb-2 justify-end">
           <Mic className="hidden md:block w-3 h-3 text-[#8b5cf6]/50" />
-          <span className="text-[10px] md:text-xs font-mono text-[#8b5cf6] tracking-wider">지원자</span>
+          <span className="text-xs font-semibold text-[#8b5cf6] tracking-normal">지원자</span>
         </div>
 
         {/* 버블 */}
@@ -102,7 +102,7 @@ function ApplicantMessage({ content }: { content: string }) {
               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-transparent h-[200%] animate-[scan_3s_linear_infinite]" />
             </div>
 
-            <p className="text-xs md:text-sm leading-relaxed text-white whitespace-pre-wrap relative z-10">{content}</p>
+            <p className="text-sm leading-relaxed text-white whitespace-pre-wrap relative z-10">{content}</p>
           </div>
         </div>
       </div>
@@ -132,16 +132,16 @@ function LoadingMessage() {
       </div>
 
       {/* 메시지 */}
-      <div className="max-w-[85%] md:max-w-[80%]">
+      <div className="max-w-[90%] sm:max-w-[85%] md:max-w-[80%]">
         <div className="flex items-center gap-2 mb-1.5 md:mb-2">
-          <span className="text-[10px] md:text-xs font-mono text-[#00F2FF] tracking-wider">면접관</span>
-          <span className="text-[10px] font-mono text-[#00F2FF] animate-pulse">처리 중</span>
+          <span className="text-xs font-semibold text-[#00F2FF] tracking-normal">면접관</span>
+          <span className="text-xs text-[#00F2FF] animate-pulse">처리 중</span>
         </div>
 
         <div className="relative bg-gradient-to-br from-dark-700/90 to-dark-800/90 backdrop-blur-md rounded-2xl rounded-tl-sm px-3 md:px-5 py-3 md:py-4 border border-[#00F2FF]/20">
           <div className="flex items-center gap-2 md:gap-3">
             <TypingIndicator />
-            <span className="text-xs md:text-sm text-gray-400">응답 생성 중...</span>
+            <span className="text-xs md:text-sm text-gray-300">응답 생성 중...</span>
           </div>
         </div>
       </div>
@@ -221,7 +221,7 @@ function EmptyState({
         <div className="text-center mb-6 md:mb-10">
           <div className="flex items-center justify-center gap-2 mb-3 md:mb-4">
             <Wifi className="w-3 h-3 md:w-4 md:h-4 text-[#00ff88] animate-pulse" />
-            <span className="text-[10px] md:text-xs font-mono text-[#00ff88] tracking-[0.2em] md:tracking-[0.3em]">시스템 준비 완료</span>
+            <span className="text-xs font-medium text-[#00ff88] tracking-wide">시스템 준비 완료</span>
           </div>
 
           <h2 className="text-2xl md:text-4xl font-bold mb-3 md:mb-4 tracking-tight">
@@ -229,7 +229,7 @@ function EmptyState({
             <span className="text-[#00F2FF] ml-2 md:ml-3 drop-shadow-[0_0_20px_rgba(0,242,255,0.5)]">TERMINAL</span>
           </h2>
 
-          <p className="text-gray-400 max-w-sm md:max-w-md leading-relaxed text-xs md:text-sm px-2">
+          <p className="text-gray-300 max-w-sm md:max-w-md leading-relaxed text-xs md:text-sm px-2">
             <span className="md:hidden">메뉴에서 직군과 회사를 선택 후 시작하세요</span>
             <span className="hidden md:inline">
               좌측 패널에서 <span className="text-[#00F2FF] font-medium">직군</span>과{' '}
@@ -298,7 +298,7 @@ function EmptyState({
       {/* 하단 장식 - 모바일에서 숨김 */}
       <div className="hidden md:flex absolute bottom-6 left-1/2 -translate-x-1/2 items-center gap-3">
         <div className="w-20 h-px bg-gradient-to-r from-transparent to-[#00F2FF]/30" />
-        <span className="text-[10px] font-mono text-gray-600 tracking-[0.2em]">EvenI INTERVIEW v2.0</span>
+        <span className="text-xs font-mono text-gray-400 tracking-[0.2em]">EvenI INTERVIEW v2.0</span>
         <div className="w-20 h-px bg-gradient-to-l from-transparent to-[#8b5cf6]/30" />
       </div>
 
@@ -361,11 +361,11 @@ export default function ChatArea({
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#00F2FF]/20 to-transparent" />
             <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1 md:py-1.5 bg-dark-700/50 rounded-full border border-[#00F2FF]/20">
               <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-[#00ff88] rounded-full animate-pulse" />
-              <span className="text-[8px] md:text-[10px] font-mono text-gray-500 tracking-wider">세션 시작</span>
+              <span className="text-[10px] md:text-xs font-medium text-gray-400 tracking-normal">세션 시작</span>
             </div>
             {questionCount > 0 && (
               <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1 md:py-1.5 bg-dark-700/50 rounded-full border border-[#8b5cf6]/20">
-                <span className="text-[8px] md:text-[10px] font-mono text-[#8b5cf6] tracking-wider">
+                <span className="text-[10px] md:text-xs font-mono text-[#8b5cf6] tracking-wider">
                   Q {Math.min(questionCount, TOTAL_QUESTION_COUNT)}/{TOTAL_QUESTION_COUNT}
                 </span>
                 <div className="w-12 md:w-16 h-1 bg-dark-600 rounded-full overflow-hidden">

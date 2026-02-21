@@ -154,7 +154,7 @@ function SelectionChip({
       onClick={onClick}
       disabled={disabled}
       className={`
-        relative px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-300
+        relative px-4 py-3 md:py-2.5 rounded-lg font-medium text-sm transition-all duration-300
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${selected
           ? 'bg-gradient-to-br from-[#00F2FF]/20 to-[#8b5cf6]/20 text-white border border-[#00F2FF]/60 shadow-[0_0_20px_rgba(0,242,255,0.3),inset_0_0_20px_rgba(0,242,255,0.1)]'
@@ -390,7 +390,7 @@ export default function Sidebar({
           h-full relative rounded-2xl overflow-hidden
           md:block
           ${isMobileOpen
-            ? 'fixed inset-y-0 left-0 w-80 z-50 rounded-none md:relative md:w-full md:z-auto'
+            ? 'fixed top-16 bottom-0 left-0 w-[min(320px,90vw)] z-50 rounded-none md:relative md:inset-auto md:w-full md:z-auto'
             : 'hidden md:block'
           }
           transition-transform duration-300 ease-out

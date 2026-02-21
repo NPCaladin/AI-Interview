@@ -57,7 +57,7 @@ export default function Header({ isMobileMenuOpen = false, onMobileMenuToggle }:
           {/* 모바일 메뉴 버튼 */}
           <button
             onClick={onMobileMenuToggle}
-            className="md:hidden relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#00F2FF]/30 bg-[#00F2FF]/5 hover:bg-[#00F2FF]/10 transition-all duration-300"
+            className="md:hidden relative w-11 h-11 flex items-center justify-center rounded-lg border border-[#00F2FF]/30 bg-[#00F2FF]/5 hover:bg-[#00F2FF]/10 transition-all duration-300"
             aria-label={isMobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
           >
             {isMobileMenuOpen ? (
