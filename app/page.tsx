@@ -46,12 +46,13 @@ export default function Home() {
 
   // 에러를 toast로 표시하는 래퍼
   const handleStartInterview = useCallback(async () => {
+    unlockAudio(); // iOS Safari: 면접 시작 버튼 클릭 시 오디오 잠금 해제 (첫 질문 음성 재생을 위해 필수)
     try {
       await startInterview();
     } catch {
       toast.error('면접 시작에 실패했습니다. 다시 시도해주세요.');
     }
-  }, [startInterview]);
+  }, [startInterview, unlockAudio]);
 
   const handleSendMessage = useCallback(async (message: string) => {
     try {
