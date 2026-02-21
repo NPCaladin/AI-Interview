@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <rect width="32" height="32" rx="6" fill="#0A0A14"/>
+  <!-- E 글자 (사이안) -->
+  <rect x="6" y="8" width="8" height="2" rx="1" fill="#00F2FF"/>
+  <rect x="6" y="15" width="6" height="2" rx="1" fill="#00F2FF"/>
+  <rect x="6" y="22" width="8" height="2" rx="1" fill="#00F2FF"/>
+  <rect x="6" y="8" width="2" height="16" rx="1" fill="#00F2FF"/>
+  <!-- I 글자 (흰색) -->
+  <rect x="18" y="8" width="8" height="2" rx="1" fill="white"/>
+  <rect x="18" y="22" width="8" height="2" rx="1" fill="white"/>
+  <rect x="21" y="8" width="2" height="16" rx="1" fill="white"/>
+  <!-- 글로우 효과용 overlay -->
+  <rect x="6" y="8" width="8" height="2" rx="1" fill="#00F2FF" opacity="0.4"/>
+</svg>

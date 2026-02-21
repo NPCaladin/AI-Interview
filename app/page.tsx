@@ -20,7 +20,7 @@ import AuthScreen from '@/components/AuthScreen';
 export default function Home() {
   const { isDevMode } = useDevMode();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [sttModel, setSttModel] = useState<'OpenAI Whisper' | 'Daglo'>('OpenAI Whisper');
+  const [sttModel, setSttModel] = useState<'OpenAI Whisper' | 'Daglo'>('Daglo');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const {

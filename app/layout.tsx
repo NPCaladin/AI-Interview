@@ -12,8 +12,14 @@ const orbitron = Orbitron({
 });
 
 export const metadata: Metadata = {
-  title: "ENENI Interview Training",
-  description: "AI-Powered Mock Interview for Game Industry",
+  title: "EvenI 면접 연습",
+  description: "게임 업계 AI 모의 면접 플랫폼. 직무별 맞춤 질문, STAR 기법 분석, 실시간 피드백.",
+  icons: { icon: '/favicon.svg' },
+  openGraph: {
+    title: "EvenI 면접 연습",
+    description: "게임 업계 AI 모의 면접 플랫폼",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -23,6 +29,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={orbitron.variable}>
+      <head>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css" />
+      </head>
       <body>
         <AuthProvider>
           <DevModeProvider>

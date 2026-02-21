@@ -48,4 +48,7 @@ nul
 .claude/
 면접결과_*
 분석리포트_*
+면접테스트*.txt
+*.png
+!public/*.png
 

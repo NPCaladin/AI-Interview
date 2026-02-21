@@ -31,7 +31,7 @@ export default function Header({ isMobileMenuOpen = false, onMobileMenuToggle }:
             <div>
               <h1 className="text-lg md:text-2xl font-bold tracking-tight font-tech">
                 <span className="text-white">Even</span><span className="text-[#00F2FF]">I</span>
-                <span className="hidden sm:inline text-gray-300 font-normal ml-2">면접 연습</span>
+                <span className="hidden sm:inline text-gray-300 font-normal ml-2 font-sans">면접 연습</span>
               </h1>
               <p className="hidden md:flex text-xs text-gray-400 items-center gap-1">
                 <Zap className="w-3 h-3 text-neon-cyan" />
@@ -42,18 +42,12 @@ export default function Header({ isMobileMenuOpen = false, onMobileMenuToggle }:
 
           {/* 네비게이션 - 데스크톱 */}
           <nav className="hidden md:flex items-center gap-2">
-            <a
-              href="#"
+            <Link
+              href="/guide"
               className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-all duration-300"
             >
               면접 가이드
-            </a>
-            <a
-              href="#"
-              className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-all duration-300"
-            >
-              내 결과
-            </a>
+            </Link>
             <div className="ml-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#00F2FF]/10 border border-[#00F2FF]/30">
               <div className="w-2 h-2 bg-[#00F2FF] rounded-full animate-pulse shadow-[0_0_10px_rgba(0,242,255,0.8)]"></div>
               <span className="text-xs font-tech font-medium text-[#00F2FF] tracking-wider">ONLINE</span>

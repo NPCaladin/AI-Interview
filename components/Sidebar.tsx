@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Briefcase,
   Building2,
@@ -103,7 +103,7 @@ function SectionHeader({
           <h3 className="text-sm font-bold text-white truncate">{title}</h3>
           {status === 'locked' && <Lock className="w-3 h-3 text-gray-500" />}
         </div>
-        <p className="text-[10px] font-mono text-gray-500 tracking-wider uppercase">{subtitle}</p>
+        <p className="text-xs text-gray-400 tracking-wide">{subtitle}</p>
       </div>
     </div>
   );
@@ -158,7 +158,7 @@ function SelectionChip({
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${selected
           ? 'bg-gradient-to-br from-[#00F2FF]/20 to-[#8b5cf6]/20 text-white border border-[#00F2FF]/60 shadow-[0_0_20px_rgba(0,242,255,0.3),inset_0_0_20px_rgba(0,242,255,0.1)]'
-          : 'bg-dark-700/80 text-gray-400 border border-dark-500 hover:border-[#00F2FF]/30 hover:text-gray-200 hover:bg-dark-600/80'
+          : 'bg-dark-700/80 text-gray-300 border border-dark-500 hover:border-[#00F2FF]/30 hover:text-white hover:bg-dark-600/80'
         }
       `}
     >
@@ -301,7 +301,7 @@ function ActionButton({
       onClick={onClick}
       disabled={disabled || loading}
       className={`
-        relative w-full py-3.5 px-4 rounded-xl font-mono text-sm tracking-wider
+        relative w-full py-3.5 px-4 rounded-xl text-sm font-medium tracking-normal
         transition-all duration-300 flex items-center justify-center gap-2.5
         overflow-hidden
         ${variants[variant]}
@@ -329,7 +329,7 @@ export default function Sidebar({
   selectedCompany = '',
   onJobChange,
   onCompanyChange,
-  sttModel = 'OpenAI Whisper',
+  sttModel = 'Daglo',
   onSttModelChange,
   questionCount = 0,
   canAnalyze = false,
@@ -432,7 +432,7 @@ export default function Sidebar({
             </div>
             <div>
               <h2 className="text-lg font-bold text-white tracking-wide">면접 준비</h2>
-              <p className="text-[10px] font-mono text-[#00F2FF]/60 tracking-[0.2em]">INTERVIEW SETUP v2.0</p>
+              <p className="text-xs font-mono text-[#00F2FF]/80 tracking-[0.2em]">INTERVIEW SETUP v2.0</p>
             </div>
           </div>
 
@@ -514,7 +514,7 @@ export default function Sidebar({
               <div className="relative">
                 <div className="flex items-center gap-2 mb-3">
                   <Shield className="w-4 h-4 text-[#00ff88] drop-shadow-[0_0_8px_rgba(0,255,136,0.8)]" />
-                  <span className="text-xs font-mono text-[#00ff88] tracking-wider">준비 완료</span>
+                  <span className="text-xs font-medium text-[#00ff88] tracking-normal">준비 완료</span>
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2 text-sm">
@@ -587,7 +587,7 @@ export default function Sidebar({
                     <p className={`text-sm font-medium ${hasResume ? 'text-[#00ff88]' : 'text-gray-400'}`}>
                       {hasResume ? '업로드 완료' : '.txt 파일 선택'}
                     </p>
-                    <p className="text-[10px] text-gray-600 truncate">
+                    <p className="text-xs text-gray-400 truncate">
                       {hasResume ? '자소서 기반 질문이 생성됩니다' : '자소서 기반 맞춤 질문 생성'}
                     </p>
                   </div>
@@ -597,78 +597,83 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* 고급 설정 토글 */}
-        <div className="mt-4 border-t border-dark-600/50 pt-4">
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between text-sm font-medium text-gray-400 hover:text-white transition-colors py-2"
-          >
-            <span className="flex items-center gap-2">
-              <Settings className="w-4 h-4 text-[#00F2FF]" />
-              <span className="font-mono tracking-wider text-xs">고급 설정</span>
-            </span>
-            <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${showAdvanced ? 'rotate-180' : ''}`} />
-          </button>
+        {/* 고급 설정 토글 - 개발 모드에서만 표시 */}
+        {process.env.NEXT_PUBLIC_DEV_MODE_ENABLED === 'true' && (
+          <div className="mt-4 border-t border-dark-600/50 pt-4">
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="w-full flex items-center justify-between text-sm font-medium text-gray-400 hover:text-white transition-colors py-2"
+            >
+              <span className="flex items-center gap-2">
+                <Settings className="w-4 h-4 text-[#00F2FF]" />
+                <span className="font-medium text-xs tracking-normal">고급 설정</span>
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${showAdvanced ? 'rotate-180' : ''}`} />
+            </button>
 
-          {showAdvanced && (
-            <div className="mt-3 p-4 bg-dark-700/50 rounded-xl border border-dark-600 space-y-4">
-              <div>
-                <label className="block text-xs font-mono text-gray-400 mb-2 tracking-wider">음성 인식 모델</label>
-                <div className="space-y-2">
-                  {['OpenAI Whisper', 'Daglo'].map((model) => (
-                    <label
-                      key={model}
-                      className={`
-                        flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all
-                        ${sttModel === model
-                          ? 'bg-[#00F2FF]/10 border border-[#00F2FF]/30'
-                          : 'bg-dark-600/50 border border-transparent hover:border-dark-500'
-                        }
-                      `}
-                    >
-                      <input
-                        type="radio"
-                        name="sttModel"
-                        value={model}
-                        checked={sttModel === model}
-                        onChange={() => onSttModelChange?.(model as 'OpenAI Whisper' | 'Daglo')}
-                        className="sr-only"
-                      />
-                      <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
-                        sttModel === model ? 'border-[#00F2FF] bg-[#00F2FF]' : 'border-gray-500'
-                      }`}>
-                        {sttModel === model && <div className="w-1 h-1 rounded-full bg-dark-900" />}
-                      </div>
-                      <span className={`text-sm ${sttModel === model ? 'text-white' : 'text-gray-400'}`}>{model}</span>
-                    </label>
-                  ))}
-                </div>
-                {sttModel === 'Daglo' && dagloKeyExists !== null && (
-                  <div className={`mt-2 p-2 rounded-lg text-xs flex items-center gap-2 ${
-                    dagloKeyExists ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'bg-yellow-500/10 text-yellow-400'
-                  }`}>
-                    {dagloKeyExists ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                    {dagloKeyExists ? 'API KEY 설정됨' : 'API KEY 미설정'}
+            {showAdvanced && (
+              <div className="mt-3 p-4 bg-dark-700/50 rounded-xl border border-dark-600 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-300 mb-2 tracking-normal">음성 인식 모델</label>
+                  <div className="space-y-2">
+                    {(['OpenAI Whisper', 'Daglo'] as const).map((model) => (
+                      <label
+                        key={model}
+                        className={`
+                          flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all
+                          ${sttModel === model
+                            ? 'bg-[#00F2FF]/10 border border-[#00F2FF]/30'
+                            : 'bg-dark-600/50 border border-transparent hover:border-dark-500'
+                          }
+                        `}
+                      >
+                        <input
+                          type="radio"
+                          name="sttModel"
+                          value={model}
+                          checked={sttModel === model}
+                          onChange={() => onSttModelChange?.(model)}
+                          className="sr-only"
+                        />
+                        <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
+                          sttModel === model ? 'border-[#00F2FF] bg-[#00F2FF]' : 'border-gray-500'
+                        }`}>
+                          {sttModel === model && <div className="w-1 h-1 rounded-full bg-dark-900" />}
+                        </div>
+                        <span className={`text-sm ${sttModel === model ? 'text-white' : 'text-gray-300'}`}>{model}</span>
+                      </label>
+                    ))}
                   </div>
-                )}
+                  {sttModel === 'Daglo' && dagloKeyExists !== null && (
+                    <div className={`mt-2 p-2 rounded-lg text-xs flex items-center gap-2 ${
+                      dagloKeyExists ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'bg-yellow-500/10 text-yellow-400'
+                    }`}>
+                      {dagloKeyExists ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                      {dagloKeyExists ? 'API KEY 설정됨' : 'API KEY 미설정'}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* API 상태 */}
         <div className="mt-4 p-3 bg-dark-700/30 rounded-lg border border-dark-600/50">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-gray-500 tracking-widest">시스템 상태</span>
+            <span className="text-xs font-medium text-gray-300 tracking-wide">시스템 상태</span>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <div className="w-2 h-2 bg-[#00ff88] rounded-full" />
                 <div className="absolute inset-0 w-2 h-2 bg-[#00ff88] rounded-full animate-ping opacity-75" />
               </div>
-              <span className="text-[10px] font-mono text-[#00ff88] tracking-wider">ONLINE</span>
+              <span className="text-xs font-mono text-[#00ff88] tracking-wider">ONLINE</span>
             </div>
           </div>
         </div>
+
+        {/* 마이크 테스트 */}
+        <MicTestSection />
 
         {/* 개발자 모드 (로컬 전용) */}
         {process.env.NEXT_PUBLIC_DEV_MODE_ENABLED === 'true' && <DevModeSection />}
@@ -678,7 +683,7 @@ export default function Sidebar({
           <div className="mt-4 p-3 bg-dark-700/50 rounded-xl border border-dark-600/50 space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-mono text-gray-500 tracking-widest">주간 사용량</span>
+                <span className="text-xs font-medium text-gray-300 tracking-wide">주간 사용량</span>
                 <span className="text-xs font-mono text-[#00F2FF]">
                   {usage.remaining}/{usage.limit}
                 </span>
@@ -698,7 +703,7 @@ export default function Sidebar({
                 />
               </div>
               {usage.remaining === 0 && (
-                <p className="mt-1.5 text-[10px] text-red-400">
+                <p className="mt-1.5 text-xs text-red-400">
                   이번 주 면접 횟수를 모두 사용했습니다.
                 </p>
               )}
@@ -706,13 +711,13 @@ export default function Sidebar({
             <div className="flex items-center justify-between pt-2 border-t border-dark-600/50">
               <div className="flex items-center gap-2 min-w-0">
                 <User className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                <span className="text-xs text-gray-400 truncate">
+                <span className="text-xs text-gray-300 truncate">
                   {student.name} ({student.code})
                 </span>
               </div>
               <button
                 onClick={authLogout}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-gray-500 hover:text-red-400 rounded transition-colors flex-shrink-0"
+                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-red-400 rounded transition-colors flex-shrink-0"
               >
                 <LogOut className="w-3 h-3" />
                 로그아웃
@@ -725,7 +730,7 @@ export default function Sidebar({
         <div className="my-5 relative">
           <div className="h-px bg-gradient-to-r from-transparent via-[#00F2FF]/30 to-transparent" />
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-3 bg-dark-800">
-            <span className="text-[10px] font-mono text-[#00F2FF]/50 tracking-[0.3em]">실행</span>
+            <span className="text-xs font-medium text-[#00F2FF]/70 tracking-wide">실행</span>
           </div>
         </div>
 
@@ -789,6 +794,135 @@ export default function Sidebar({
         `}</style>
       </div>
     </>
+  );
+}
+
+// 마이크 테스트 섹션 컴포넌트
+function MicTestSection() {
+  const [status, setStatus] = useState<'idle' | 'testing' | 'denied' | 'error'>('idle');
+  const [level, setLevel] = useState(0);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  const stopTest = useCallback(() => {
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    setLevel(0);
+    setStatus('idle');
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (animFrameRef.current !== null) cancelAnimationFrame(animFrameRef.current);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      audioContextRef.current?.close();
+    };
+  }, []);
+
+  const startTest = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      setStatus('testing');
+      const loop = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        setLevel(Math.min(1, avg / 80));
+        animFrameRef.current = requestAnimationFrame(loop);
+      };
+      loop();
+    } catch (err) {
+      const error = err as Error;
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        setStatus('denied');
+      } else {
+        setStatus('error');
+      }
+    }
+  };
+
+  const barHeights = [0.5, 0.75, 1, 0.75, 0.5];
+  const getBarColor = (lv: number) => {
+    if (lv < 0.3) return '#8b5cf6';
+    if (lv < 0.7) return '#00F2FF';
+    return '#00ff88';
+  };
+
+  return (
+    <div className="mt-4 p-3 bg-dark-700/30 rounded-lg border border-dark-600/50">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-gray-300 tracking-wide">마이크 테스트</span>
+        <span className={`text-[10px] font-mono tracking-wider ${
+          status === 'idle' ? 'text-gray-400' :
+          status === 'testing' ? 'text-[#00ff88]' :
+          'text-red-400'
+        }`}>
+          {status === 'idle' ? 'IDLE' : status === 'testing' ? 'ACTIVE' : status === 'denied' ? 'DENIED' : 'ERROR'}
+        </span>
+      </div>
+
+      {status === 'idle' && (
+        <p className="text-xs text-gray-400 mb-2">면접 전 마이크를 확인하세요</p>
+      )}
+
+      {status === 'testing' && (
+        <div className="flex items-end justify-center gap-1 h-8 mb-2">
+          {barHeights.map((heightRatio, i) => {
+            const barLevel = level * heightRatio;
+            const color = getBarColor(barLevel);
+            return (
+              <div
+                key={i}
+                className="w-3 rounded-sm transition-all duration-75"
+                style={{
+                  height: `${Math.max(4, barLevel * 32)}px`,
+                  backgroundColor: color,
+                  boxShadow: `0 0 ${Math.round(barLevel * 8)}px ${color}`,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {status === 'denied' && (
+        <p className="text-xs text-yellow-400 mb-2">주소창 🔒 → 마이크 허용 후 다시 시도하세요</p>
+      )}
+
+      {status === 'error' && (
+        <p className="text-xs text-red-400 mb-2">마이크를 찾을 수 없습니다</p>
+      )}
+
+      <button
+        onClick={status === 'testing' ? stopTest : startTest}
+        className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+          status === 'testing'
+            ? 'bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30'
+            : 'bg-dark-600/80 border border-dark-500 text-gray-400 hover:text-white hover:border-[#8b5cf6]/50'
+        }`}
+      >
+        <Mic className={`w-3 h-3 ${status === 'testing' ? 'animate-pulse' : ''}`} />
+        {status === 'testing' ? '중지' : '테스트'}
+      </button>
+    </div>
   );
 }
 
