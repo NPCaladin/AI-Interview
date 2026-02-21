@@ -52,14 +52,14 @@ export default function AuthScreen() {
                 <Cpu className="w-10 h-10 text-[#00F2FF] drop-shadow-[0_0_10px_rgba(0,242,255,0.8)]" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-wide mb-1">EvenI 면접 연습</h1>
-            <p className="text-xs font-mono text-[#00F2FF]/60 tracking-[0.2em]">수강생 인증</p>
+            <h1 className="text-2xl font-bold text-white tracking-normal mb-1">EvenI 면접 연습</h1>
+            <p className="text-xs font-medium text-[#00F2FF]/80 tracking-wider">수강생 인증</p>
           </div>
 
           {/* 폼 */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-mono text-gray-400 mb-2 tracking-wider">
+              <label className="block text-xs font-medium text-gray-300 mb-2 tracking-normal">
                 <Shield className="w-3 h-3 inline mr-1.5" />
                 수강생 코드
               </label>
@@ -71,7 +71,7 @@ export default function AuthScreen() {
                 placeholder="V0000000"
                 autoFocus
                 disabled={isSubmitting}
-                className="w-full px-4 py-3.5 bg-dark-700/80 border border-dark-500 rounded-xl text-white text-lg font-mono tracking-widest placeholder:text-gray-600 focus:border-[#00F2FF]/60 focus:outline-none focus:shadow-[0_0_20px_rgba(0,242,255,0.15)] transition-all duration-300 disabled:opacity-50"
+                className="w-full px-4 py-3.5 bg-dark-700/80 border border-dark-500 rounded-xl text-white text-lg font-mono tracking-widest placeholder:text-gray-500 focus:border-[#00F2FF]/60 focus:outline-none focus:shadow-[0_0_20px_rgba(0,242,255,0.15)] transition-all duration-300 disabled:opacity-50"
               />
             </div>
 
@@ -88,7 +88,7 @@ export default function AuthScreen() {
               type="submit"
               disabled={!code.trim() || isSubmitting}
               className="
-                relative w-full py-3.5 px-4 rounded-xl font-mono text-sm tracking-wider
+                relative w-full py-3.5 px-4 rounded-xl text-sm tracking-normal
                 transition-all duration-300 flex items-center justify-center gap-2.5
                 overflow-hidden
                 bg-gradient-to-r from-[#00D9A5] via-[#00F2FF] to-[#00C4E0]
@@ -116,7 +116,7 @@ export default function AuthScreen() {
           </form>
 
           {/* 안내 */}
-          <p className="mt-6 text-center text-xs text-gray-500">
+          <p className="mt-6 text-center text-xs text-gray-400">
             수강생 코드는 수업 시 안내받은 코드를 입력해주세요.
           </p>
         </div>

@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         tech: ['var(--font-orbitron)', 'monospace'],
+        sans: ['Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'sans-serif'],
       },
       colors: {
         background: "var(--background)",
