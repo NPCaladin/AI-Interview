@@ -6,84 +6,66 @@ export function useAudioPlayer() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioPlayFailed, setAudioPlayFailed] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
 
-  // Web Audio API 그래프 초기화 (최초 1회)
-  const initAudioGraph = useCallback(() => {
-    if (audioContextRef.current || !audioRef.current) return;
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    audioContextRef.current = new AudioCtx();
-    sourceNodeRef.current = audioContextRef.current.createMediaElementSource(audioRef.current);
-    gainNodeRef.current = audioContextRef.current.createGain();
-    sourceNodeRef.current.connect(gainNodeRef.current);
-    gainNodeRef.current.connect(audioContextRef.current.destination);
+  // iOS Safari: 사용자 제스처(버튼 클릭) 시 호출 → 오디오 자동재생 권한 획득
+  const unlockAudio = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    // play() 후 즉시 pause() → iOS가 이 엘리먼트에 대한 재생 권한 부여
+    el.play()
+      .then(() => { el.pause(); el.currentTime = 0; })
+      .catch(() => {});
   }, []);
 
-  // 사용자 제스처 시 AudioContext 잠금 해제 (iOS Safari 대응)
-  // 마이크 버튼·전송 버튼 클릭 시 호출
-  const unlockAudio = useCallback(() => {
-    initAudioGraph();
-    if (audioContextRef.current?.state === 'suspended') {
-      audioContextRef.current.resume().catch(() => {});
-    }
-  }, [initAudioGraph]);
-
-  // audioUrl이 변경되면 자동 재생 (2배 볼륨 증폭)
+  // audioUrl 변경 시 canplay 이벤트 대기 후 재생 (첫마디 짤림 방지)
   useEffect(() => {
     if (!audioUrl || !audioRef.current) return;
-
+    const el = audioRef.current;
     setAudioPlayFailed(false);
 
-    const playAudio = async () => {
+    let cancelled = false;
+
+    const doPlay = async () => {
+      if (cancelled) return;
       try {
-        initAudioGraph();
-
-        if (gainNodeRef.current) {
-          gainNodeRef.current.gain.value = 2.0;
-        }
-
-        // suspended 상태를 반드시 await로 해제 (iOS Safari 핵심 수정)
-        if (audioContextRef.current?.state === 'suspended') {
-          await audioContextRef.current.resume();
-        }
-
-        await audioRef.current!.play();
-      } catch (error) {
-        console.error('오디오 자동 재생 실패 (브라우저 정책):', error);
-        setAudioPlayFailed(true);
+        await el.play();
+      } catch {
+        if (!cancelled) setAudioPlayFailed(true);
       }
     };
 
-    playAudio();
-  }, [audioUrl, initAudioGraph]);
+    // 리스너 먼저 등록 후 readyState 확인 → 레이스 컨디션 방지
+    el.addEventListener('canplay', doPlay, { once: true });
+    if (el.readyState >= 3) {
+      // 이미 재생 가능한 상태이면 리스너 제거 후 즉시 재생
+      el.removeEventListener('canplay', doPlay);
+      doPlay();
+    }
 
-  // Web Audio API + audioUrl 리소스 정리 (언마운트 시)
+    return () => {
+      cancelled = true;
+      el.removeEventListener('canplay', doPlay);
+    };
+  }, [audioUrl]);
+
+  // 언마운트 시 blob URL 정리
   useEffect(() => {
     return () => {
       setAudioUrl(prevUrl => {
         if (prevUrl) URL.revokeObjectURL(prevUrl);
         return null;
       });
-      sourceNodeRef.current?.disconnect();
-      gainNodeRef.current?.disconnect();
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
-      }
     };
   }, []);
 
   const handleManualAudioPlay = useCallback(async () => {
-    if (!audioRef.current) return;
+    const el = audioRef.current;
+    if (!el) return;
     try {
-      if (audioContextRef.current?.state === 'suspended') {
-        await audioContextRef.current.resume();
-      }
-      await audioRef.current.play();
+      await el.play();
       setAudioPlayFailed(false);
-    } catch (error) {
-      console.error('오디오 재생 실패:', error);
+    } catch {
+      // noop
     }
   }, []);
 

@@ -29,6 +29,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
   const [resumeText, setResumeText] = useState<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const isRequestingRef = useRef(false); // 더블클릭 방지용 ref (state보다 즉시 반영)
+  const ttsSeqRef = useRef(0); // TTS 요청 순서 관리 (구버전 응답 무시용)
 
   // 진행 중인 요청 취소
   const cancelPendingRequest = useCallback(() => {
@@ -165,20 +166,24 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
         addDebugData({ latency, requestBody, responseBody: chatData });
       }
 
-      // TTS
-      const ttsResponse = await fetchWithTimeout('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: chatData.message }),
-      });
-
-      if (!ttsResponse.ok) {
-        throw new Error('TTS API 요청 실패');
-      }
-
-      const audioBlob = await ttsResponse.blob();
-      const url = URL.createObjectURL(audioBlob);
-      updateAudioUrl(url);
+      // TTS 비동기 백그라운드 재생 (chat 완료 즉시 UI 해제, 음성은 준비되면 자동 재생)
+      const ttsSeqId = ++ttsSeqRef.current;
+      (async () => {
+        const controller = new AbortController();
+        const ttsTimeout = setTimeout(() => controller.abort(), 15000);
+        try {
+          const r = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ text: chatData.message }),
+            signal: controller.signal,
+          });
+          if (ttsSeqRef.current !== ttsSeqId || !r.ok) return;
+          const blob = await r.blob();
+          if (ttsSeqRef.current !== ttsSeqId) return;
+          updateAudioUrl(URL.createObjectURL(blob));
+        } catch { /* TTS 실패는 비치명적 — 텍스트는 이미 표시됨 */ } finally { clearTimeout(ttsTimeout); }
+      })();
     } catch (error) {
       setIsInterviewStarted(false); // 실패 시 상태 복원
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -191,7 +196,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       setIsLoading(false);
       isRequestingRef.current = false;
     }
-  }, [isInterviewStarted, isLoading, selectedJob, selectedCompany, interviewData, isDevMode, config, resumeText, addDebugData, clearAudioUrl, updateAudioUrl, cancelPendingRequest, fetchWithTimeout, updateRemaining]);
+  }, [isInterviewStarted, isLoading, selectedJob, selectedCompany, interviewData, isDevMode, config, resumeText, addDebugData, clearAudioUrl, updateAudioUrl, cancelPendingRequest, fetchWithTimeout, updateRemaining, authHeaders]);
 
   // 메시지 전송
   const sendMessage = useCallback(async (userMessage: string) => {
@@ -291,20 +296,24 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
         toast.success('면접이 종료되었습니다. 분석을 시작하세요.');
       }
 
-      // TTS
-      const ttsResponse = await fetchWithTimeout('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: chatData.message }),
-      });
-
-      if (!ttsResponse.ok) {
-        throw new Error('TTS API 요청 실패');
-      }
-
-      const audioBlob = await ttsResponse.blob();
-      const url = URL.createObjectURL(audioBlob);
-      updateAudioUrl(url);
+      // TTS 비동기 백그라운드 재생 (chat 완료 즉시 UI 해제)
+      const ttsSeqId = ++ttsSeqRef.current;
+      (async () => {
+        const controller = new AbortController();
+        const ttsTimeout = setTimeout(() => controller.abort(), 15000);
+        try {
+          const r = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ text: chatData.message }),
+            signal: controller.signal,
+          });
+          if (ttsSeqRef.current !== ttsSeqId || !r.ok) return;
+          const blob = await r.blob();
+          if (ttsSeqRef.current !== ttsSeqId) return;
+          updateAudioUrl(URL.createObjectURL(blob));
+        } catch { /* TTS 실패는 비치명적 */ } finally { clearTimeout(ttsTimeout); }
+      })();
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         toast.error('요청 시간이 초과되었습니다. 다시 시도해주세요.');
@@ -315,7 +324,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       setIsLoading(false);
       isRequestingRef.current = false;
     }
-  }, [isInterviewStarted, isLoading, messages, interviewData, selectedJob, selectedCompany, questionCount, isDevMode, config, resumeText, addDebugData, updateAudioUrl, cancelPendingRequest, fetchWithTimeout, updateRemaining]);
+  }, [isInterviewStarted, isLoading, messages, interviewData, selectedJob, selectedCompany, questionCount, isDevMode, config, resumeText, addDebugData, updateAudioUrl, cancelPendingRequest, fetchWithTimeout, updateRemaining, authHeaders]);
 
   // 오디오 입력 처리
   const handleAudioInput = useCallback(async (audioBlob: Blob) => {

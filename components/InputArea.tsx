@@ -38,6 +38,15 @@ export default function InputArea({
     };
   }, []);
 
+  // 면접 시작 시 마이크 권한 사전 획득 (클릭 후 첫마디 짤림 방지)
+  // getUserMedia() 지연(100~500ms)을 면접 시작 시점으로 앞당김
+  useEffect(() => {
+    if (!isInterviewStarted) return;
+    navigator.mediaDevices?.getUserMedia({ audio: true })
+      .then(stream => stream.getTracks().forEach(t => t.stop()))
+      .catch(() => {}); // 권한 거부 시 무시 (클릭 시 다시 요청됨)
+  }, [isInterviewStarted]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onUnlockAudio?.(); // iOS Safari AudioContext 잠금 해제
