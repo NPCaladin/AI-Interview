@@ -34,7 +34,7 @@ export const COMPANY_LIST = [
 // Daglo API 설정
 export const DAGLO_API_BASE_URL = "https://apis.daglo.ai/stt/v1/async/transcripts";
 export const DAGLO_MAX_WAIT_TIME = 30; // 최대 대기 시간 (초)
-export const DAGLO_INITIAL_POLL_INTERVAL = 1.0; // 초기 폴링 간격 (초)
+export const DAGLO_INITIAL_POLL_INTERVAL = 0.5; // 초기 폴링 간격 (초)
 export const DAGLO_MAX_POLL_INTERVAL = 3.0; // 최대 폴링 간격 (초)
 export const DAGLO_BACKOFF_MULTIPLIER = 1.5; // 백오프 배수
 

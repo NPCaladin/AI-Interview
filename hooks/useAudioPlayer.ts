@@ -2,33 +2,42 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 
+// 1샘플 무음 WAV (45 bytes): 8-bit, mono, 8000Hz
+// iOS Safari는 HTML5 audio.play()가 실제로 성공해야 자동재생 권한이 부여됨.
+// AudioContext 방식은 iOS에서 suspended 상태 문제로 unlock 실패 → 이 방식으로 교체.
+const SILENT_WAV_BYTES = new Uint8Array([
+  82, 73, 70, 70, 37,  0,  0,  0,  87, 65, 86, 69,  // RIFF....WAVE
+ 102,109,116, 32, 16,  0,  0,  0,   1,  0,  1,  0,  // fmt .........
+  64, 31,  0,  0, 64, 31,  0,  0,   1,  0,  8,  0,  // 8000Hz, 8-bit
+ 100, 97,116, 97,  1,  0,  0,  0, 128,               // data....{silence}
+]);
+
 export function useAudioPlayer() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioPlayFailed, setAudioPlayFailed] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  // iOS Safari 잠금 해제 전용 오디오 엘리먼트 (DOM과 분리)
+  const silentRef = useRef<HTMLAudioElement | null>(null);
 
-  // iOS Safari: 사용자 제스처(버튼 클릭) 시 호출 → 오디오 자동재생 권한 획득
-  // AudioContext 무음 버퍼 재생 방식 사용 — src 없어도 동작 (면접 시작 버튼 클릭 시 커버)
+  // 마운트 시 무음 오디오 엘리먼트 생성 (브라우저 전용)
+  useEffect(() => {
+    const blob = new Blob([SILENT_WAV_BYTES], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    const el = new Audio(url);
+    el.load(); // 미리 디코딩
+    silentRef.current = el;
+    return () => {
+      URL.revokeObjectURL(url);
+      silentRef.current = null;
+    };
+  }, []);
+
+  // iOS Safari: 사용자 제스처(버튼 클릭) 시 무음 오디오 play → 페이지 레벨 자동재생 권한 획득
+  // iOS 13+: 어떤 오디오든 user gesture에서 play() 성공 시 해당 탭의 모든 audio 자동재생 허용
   const unlockAudio = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext
-        || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const buf = ctx.createBuffer(1, 1, 22050); // 1샘플 무음 버퍼
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(ctx.destination);
-      src.start(0);
-      ctx.resume().catch(() => {});
-      setTimeout(() => ctx.close().catch(() => {}), 500);
-    } catch { /* 미지원 환경 무시 */ }
-
-    // src가 이미 있는 경우 HTML5 audio도 함께 unlock
-    const el = audioRef.current;
-    if (el && el.readyState > 0) {
-      el.play().then(() => { el.pause(); el.currentTime = 0; }).catch(() => {});
-    }
+    silentRef.current?.play()
+      .then(() => { silentRef.current?.pause(); })
+      .catch(() => {});
   }, []);
 
   // audioUrl 변경 시 canplay 이벤트 대기 후 재생 (첫마디 짤림 방지)
@@ -51,7 +60,6 @@ export function useAudioPlayer() {
     // 리스너 먼저 등록 후 readyState 확인 → 레이스 컨디션 방지
     el.addEventListener('canplay', doPlay, { once: true });
     if (el.readyState >= 3) {
-      // 이미 재생 가능한 상태이면 리스너 제거 후 즉시 재생
       el.removeEventListener('canplay', doPlay);
       doPlay();
     }
