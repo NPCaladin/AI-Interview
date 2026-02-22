@@ -21,9 +21,9 @@ const nextConfig = {
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-              "style-src 'self' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
               "img-src 'self' data: blob:",
-              "font-src 'self' data:",
+              "font-src 'self' data: https://cdn.jsdelivr.net",
               "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.upstash.io",
               "media-src 'self' blob:",
               "object-src 'none'",
