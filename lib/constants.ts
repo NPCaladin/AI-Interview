@@ -14,6 +14,8 @@ export const CHAT_API_TIMEOUT = 30_000;            // Chat API 타임아웃 (ms)
 export const TTS_API_TIMEOUT = 15_000;             // TTS API 타임아웃 (ms)
 export const STT_API_TIMEOUT = 30_000;             // STT API 타임아웃 (ms)
 export const CLIENT_FETCH_TIMEOUT = 35_000;        // 클라이언트 fetch 타임아웃 (ms)
+export const INACTIVITY_WARNING_MS = 3 * 60 * 1000; // 무응답 경고 (3분)
+export const INACTIVITY_AUTO_END_MS = 4 * 60 * 1000; // 무응답 자동 종료 (4분)
 
 // 회사 목록
 export const COMPANY_LIST = [
