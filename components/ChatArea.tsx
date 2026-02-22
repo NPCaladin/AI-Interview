@@ -49,7 +49,7 @@ function InterviewerMessage({ content, isLatest }: { content: string; isLatest: 
       </div>
 
       {/* 메시지 버블 */}
-      <div className="flex-1 max-w-[90%] sm:max-w-[85%] md:max-w-[80%]">
+      <div className="flex-1 max-w-[92%] sm:max-w-[88%] md:max-w-[80%]">
         {/* 헤더 */}
         <div className="flex items-center gap-2 mb-1.5 md:mb-2">
           <span className="text-xs font-semibold text-[#00F2FF] tracking-normal">면접관</span>
@@ -83,7 +83,7 @@ function ApplicantMessage({ content }: { content: string }) {
   return (
     <div className="flex items-start gap-2 md:gap-4 justify-end">
       {/* 메시지 버블 */}
-      <div className="max-w-[90%] sm:max-w-[85%] md:max-w-[80%]">
+      <div className="max-w-[92%] sm:max-w-[88%] md:max-w-[80%]">
         {/* 헤더 */}
         <div className="flex items-center gap-2 mb-1.5 md:mb-2 justify-end">
           <Mic className="hidden md:block w-3 h-3 text-[#8b5cf6]/50" />
@@ -132,7 +132,7 @@ function LoadingMessage() {
       </div>
 
       {/* 메시지 */}
-      <div className="max-w-[90%] sm:max-w-[85%] md:max-w-[80%]">
+      <div className="max-w-[92%] sm:max-w-[88%] md:max-w-[80%]">
         <div className="flex items-center gap-2 mb-1.5 md:mb-2">
           <span className="text-xs font-semibold text-[#00F2FF] tracking-normal">면접관</span>
           <span className="text-xs text-[#00F2FF] animate-pulse">처리 중</span>

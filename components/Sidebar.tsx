@@ -913,7 +913,7 @@ function MicTestSection() {
 
       <button
         onClick={status === 'testing' ? stopTest : startTest}
-        className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+        className={`w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 ${
           status === 'testing'
             ? 'bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30'
             : 'bg-dark-600/80 border border-dark-500 text-gray-400 hover:text-white hover:border-[#8b5cf6]/50'

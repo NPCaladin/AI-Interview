@@ -213,7 +213,7 @@ export default function InputArea({
                   handleSubmit(e);
                 }
               }}
-              className="w-full px-2 md:px-4 py-3 md:py-4 bg-transparent border-0 outline-none text-gray-100 placeholder-gray-500 disabled:text-gray-600 focus:placeholder-gray-400 transition-colors text-sm md:text-base"
+              className="w-full px-3 md:px-4 py-3 md:py-4 bg-transparent border-0 outline-none text-gray-100 placeholder-gray-500 disabled:text-gray-600 focus:placeholder-gray-400 transition-colors text-sm md:text-base"
             />
             {inputValue.length > MAX_USER_INPUT_LENGTH * 0.8 && (
               <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${
@@ -235,7 +235,7 @@ export default function InputArea({
               isProcessingAudio
             }
             aria-label="답변 전송"
-            className={`flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+            className={`flex-shrink-0 w-11 h-11 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${
               inputValue.trim() && isInterviewStarted && !isLoading && !isProcessingAudio
                 ? 'bg-gradient-to-r from-neon-cyan to-cyber-500 text-white shadow-glow-cyan hover:shadow-lg'
                 : 'bg-dark-600 text-gray-500 cursor-not-allowed'
