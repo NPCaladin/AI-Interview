@@ -207,7 +207,7 @@ function QuestionFeedbackCard({ feedback, index }: { feedback: PremiumFeedbackIt
       {feedback.star_analysis && <STARVisualization analysis={feedback.star_analysis} />}
 
       {/* 평가 */}
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="p-3 bg-neon-green/5 border border-neon-green/20 rounded-lg">
           <p className="text-xs font-semibold text-neon-green mb-2 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> 강점
@@ -484,26 +484,26 @@ export default function ReportView({
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-gradient-to-b from-dark-800 to-dark-900 p-6 scrollbar-gaming">
+    <div className="h-full overflow-y-auto bg-gradient-to-b from-dark-800 to-dark-900 p-3 md:p-6 scrollbar-gaming">
       {/* 스트리밍 배너 */}
       {streaming && <StreamingBanner streaming={streaming} onRetry={onRetryAnalysis} />}
 
       <div ref={reportRef}>
         {/* 헤더 */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 md:mb-8 flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-gradient-gaming rounded-xl shadow-glow">
               <Trophy className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold gradient-text font-tech tracking-wide">INTERVIEW REPORT</h1>
-              <p className="text-sm text-gray-400">{selectedCompany} / {selectedJob}</p>
+              <h1 className="text-xl md:text-2xl font-bold gradient-text font-tech tracking-wide">INTERVIEW REPORT</h1>
+              <p className="text-xs md:text-sm text-gray-400">{selectedCompany} / {selectedJob}</p>
             </div>
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleDownloadTxt}
-              className="btn-gaming px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
+              className="btn-gaming px-3 py-2 md:px-4 rounded-lg flex items-center gap-1.5 md:gap-2 text-xs md:text-sm"
             >
               <FileText className="w-4 h-4" />
               TXT
@@ -511,7 +511,7 @@ export default function ReportView({
             <button
               onClick={handleDownloadPdf}
               disabled={isDownloading}
-              className="btn-gaming px-4 py-2 rounded-lg flex items-center gap-2 text-sm disabled:opacity-50"
+              className="btn-gaming px-3 py-2 md:px-4 rounded-lg flex items-center gap-1.5 md:gap-2 text-xs md:text-sm disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
               {isDownloading ? '생성중...' : 'PDF'}
@@ -520,7 +520,7 @@ export default function ReportView({
         </div>
 
         {/* 점수 보드 */}
-        <div className="mb-8 grid grid-cols-3 gap-4">
+        <div className="mb-6 md:mb-8 grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
           {/* 총점 */}
           <div className="glass-card-dark rounded-xl p-5 relative overflow-hidden">
             <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
@@ -558,7 +558,7 @@ export default function ReportView({
         </div>
 
         {/* 레이더 차트 + 역량 점수 */}
-        <div className="mb-8 grid grid-cols-2 gap-6">
+        <div className="mb-6 md:mb-8 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* 레이더 차트 */}
           <div className="glass-card-dark rounded-xl p-6">
             <h3 className="text-lg font-semibold text-gray-200 mb-4 flex items-center gap-2">
@@ -568,7 +568,7 @@ export default function ReportView({
             <ResponsiveContainer width="100%" height={250}>
               <RadarChart data={radarData}>
                 <PolarGrid stroke="#374151" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: '#9CA3AF', fontSize: 10 }} />
                 <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: '#6B7280', fontSize: 10 }} />
                 <Radar
                   name="점수"
@@ -624,7 +624,7 @@ export default function ReportView({
               <Star className="w-5 h-5 text-yellow-400" />
               STAR 구조 분석 요약
             </h3>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
               {[
                 { key: 'situation', label: 'Situation (상황)', score: star_analysis.situation },
                 { key: 'task', label: 'Task (역할)', score: star_analysis.task },
@@ -649,7 +649,7 @@ export default function ReportView({
                 <h4 className="text-sm font-semibold text-cyber-400 mb-2">전체 평가</h4>
                 <p className="text-sm text-gray-300 leading-relaxed">{overall_summary.total_evaluation}</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 bg-neon-green/5 border border-neon-green/20 rounded-lg">
                   <h4 className="text-sm font-semibold text-neon-green mb-2">💪 핵심 강점</h4>
                   <p className="text-sm text-gray-300 leading-relaxed">{overall_summary.core_strength}</p>
@@ -730,7 +730,7 @@ export default function ReportView({
 
         {/* 최고/최저 답변 분석 */}
         {(best_answer_analysis || worst_answer_analysis) && (
-          <div className="mb-8 grid grid-cols-2 gap-6">
+          <div className="mb-6 md:mb-8 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {best_answer_analysis && (
               <div className="glass-card-dark rounded-xl p-6 border border-neon-green/20">
                 <h3 className="text-lg font-semibold text-neon-green mb-4">🏆 최고 답변 분석</h3>
@@ -768,7 +768,7 @@ export default function ReportView({
       {showScrollTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-6 right-6 p-3 bg-cyber-500 rounded-full shadow-lg hover:bg-cyber-600 transition-colors"
+          className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 p-3 min-w-[44px] min-h-[44px] flex items-center justify-center bg-cyber-500 rounded-full shadow-lg hover:bg-cyber-600 transition-colors z-50"
         >
           <ChevronUp className="w-5 h-5 text-white" />
         </button>

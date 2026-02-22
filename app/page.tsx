@@ -161,7 +161,7 @@ export default function Home() {
             onRetryAnalysis={retryAnalysis}
           />
         ) : (
-          <div className="flex gap-4 md:gap-6 h-[calc(100dvh-100px)] md:h-[calc(100dvh-120px)]">
+          <div className="flex gap-4 md:gap-6 h-[calc(100svh-100px)] md:h-[calc(100svh-120px)]">
             {/* 왼쪽 사이드바 - 데스크톱 */}
             <div className="hidden md:block w-80 flex-shrink-0">
               <Sidebar
