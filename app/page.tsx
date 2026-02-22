@@ -16,6 +16,7 @@ import { useInterview } from '@/hooks/useInterview';
 import { useStreamingAnalysis } from '@/hooks/useStreamingAnalysis';
 import { toast } from 'sonner';
 import AuthScreen from '@/components/AuthScreen';
+import TimeoutModal from '@/components/TimeoutModal';
 
 export default function Home() {
   const { isDevMode } = useDevMode();
@@ -34,6 +35,7 @@ export default function Home() {
     questionCount, currentPhase, setResumeText,
     startInterview, sendMessage, handleAudioInput: interviewAudioInput,
     reset: interviewReset, canAnalyze,
+    timeoutModalType, handleTimeoutContinue, handleTimeoutEnd,
   } = useInterview({ sttModel, updateAudioUrl, clearAudioUrl });
 
   const {
@@ -49,8 +51,9 @@ export default function Home() {
     unlockAudio(); // iOS Safari: 면접 시작 버튼 클릭 시 오디오 잠금 해제 (첫 질문 음성 재생을 위해 필수)
     try {
       await startInterview();
-    } catch {
-      toast.error('면접 시작에 실패했습니다. 다시 시도해주세요.');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : '면접 시작에 실패했습니다. 다시 시도해주세요.';
+      toast.error(msg);
     }
   }, [startInterview, unlockAudio]);
 
@@ -80,6 +83,12 @@ export default function Home() {
       toast.error(msg);
     }
   }, [startAnalysis]);
+
+  // 타임아웃 모달 "지금 분석하기": 면접 종료 + 즉시 분석 시작
+  const handleTimeoutAnalyze = useCallback(() => {
+    handleTimeoutEnd();
+    handleAnalyze();
+  }, [handleTimeoutEnd, handleAnalyze]);
 
   const handleReset = useCallback(() => {
     interviewReset();
@@ -118,6 +127,15 @@ export default function Home() {
 
       {/* 숨겨진 오디오 태그 */}
       <audio ref={audioRef} src={audioUrl || undefined} />
+
+      {/* 무응답 타임아웃 모달 */}
+      {timeoutModalType && (
+        <TimeoutModal
+          type={timeoutModalType}
+          onContinue={handleTimeoutContinue}
+          onAnalyze={handleTimeoutAnalyze}
+        />
+      )}
 
       {/* 오디오 자동재생 실패 시 재생 버튼 */}
       {audioPlayFailed && audioUrl && (
