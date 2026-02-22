@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getCurrentPhase, generateId } from '@/lib/utils';
 import type { InterviewData } from '@/lib/utils';
 import type { Message } from '@/lib/types';
-import { TOTAL_QUESTION_COUNT, MAX_USER_INPUT_LENGTH, CLIENT_FETCH_TIMEOUT } from '@/lib/constants';
+import { TOTAL_QUESTION_COUNT, MAX_USER_INPUT_LENGTH, CLIENT_FETCH_TIMEOUT, INACTIVITY_WARNING_MS, INACTIVITY_AUTO_END_MS } from '@/lib/constants';
 
 interface UseInterviewOptions {
   sttModel: 'OpenAI Whisper' | 'Daglo';
@@ -27,9 +27,12 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
   const [currentPhase, setCurrentPhase] = useState('intro');
   const [interviewData, setInterviewData] = useState<InterviewData | null>(null);
   const [resumeText, setResumeText] = useState<string>('');
+  const [timeoutModalType, setTimeoutModalType] = useState<'warning' | 'final' | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isRequestingRef = useRef(false); // 더블클릭 방지용 ref (state보다 즉시 반영)
   const ttsSeqRef = useRef(0); // TTS 요청 순서 관리 (구버전 응답 무시용)
+  const inactivityWarningRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inactivityEndRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 진행 중인 요청 취소
   const cancelPendingRequest = useCallback(() => {
@@ -38,6 +41,43 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       abortControllerRef.current = null;
     }
   }, []);
+
+  // 무응답 타이머 초기화 + 열린 모달도 닫기
+  const clearInactivityTimer = useCallback(() => {
+    if (inactivityWarningRef.current) {
+      clearTimeout(inactivityWarningRef.current);
+      inactivityWarningRef.current = null;
+    }
+    if (inactivityEndRef.current) {
+      clearTimeout(inactivityEndRef.current);
+      inactivityEndRef.current = null;
+    }
+    setTimeoutModalType(null);
+  }, []);
+
+  // 무응답 타이머 시작 (AI 질문 후 호출)
+  // 3분: warning 모달, 4분: final 모달 (강제 종료 대신 사용자 선택)
+  const startInactivityTimer = useCallback(() => {
+    clearInactivityTimer();
+    inactivityWarningRef.current = setTimeout(() => {
+      setTimeoutModalType('warning');
+    }, INACTIVITY_WARNING_MS);
+    inactivityEndRef.current = setTimeout(() => {
+      setTimeoutModalType('final');
+    }, INACTIVITY_AUTO_END_MS);
+  }, [clearInactivityTimer]);
+
+  // 모달 "계속하기" — 타이머를 처음부터 재시작
+  const handleTimeoutContinue = useCallback(() => {
+    startInactivityTimer();
+  }, [startInactivityTimer]);
+
+  // 모달 "지금 분석하기" — 면접 종료 (분석 버튼은 사용자가 직접 클릭)
+  const handleTimeoutEnd = useCallback(() => {
+    clearInactivityTimer();
+    setIsInterviewStarted(false);
+    setIsLoading(false);
+  }, [clearInactivityTimer]);
 
   // 타임아웃 + AbortController가 적용된 fetch (auth 헤더 자동 주입)
   const fetchWithTimeout = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
@@ -77,6 +117,43 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       abortControllerRef.current = null;
     }
   }, [authHeaders, logout]);
+
+  // TTS 요청 + 지수 백오프 재시도 (최대 2회, 1s → 2s)
+  // seqId: ttsSeqRef 값. 재시도 도중 새 요청이 오면 구버전 응답 무시
+  const playTtsWithRetry = useCallback(async (text: string, seqId: number): Promise<void> => {
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        await new Promise(r => setTimeout(r, 1000 * attempt)); // 1s, 2s
+      }
+      const controller = new AbortController();
+      const ttsTimeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const r = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ text }),
+          signal: controller.signal,
+        });
+        if (ttsSeqRef.current !== seqId) return; // 구버전 응답 무시
+        if (!r.ok) {
+          if (attempt < MAX_RETRIES) continue; // 5xx 등 → 재시도
+          return; // 최종 실패는 비치명적 (텍스트는 이미 표시됨)
+        }
+        const blob = await r.blob();
+        if (ttsSeqRef.current !== seqId) return;
+        updateAudioUrl(URL.createObjectURL(blob));
+        return; // 성공
+      } catch (e) {
+        if (ttsSeqRef.current !== seqId) return;
+        if (e instanceof DOMException && e.name === 'AbortError') return; // 타임아웃은 재시도 안함
+        if (attempt < MAX_RETRIES) continue;
+        // 최종 실패: 비치명적, 텍스트는 이미 화면에 표시됨
+      } finally {
+        clearTimeout(ttsTimeout);
+      }
+    }
+  }, [authHeaders, updateAudioUrl]);
 
   // interview_data.json 로드
   useEffect(() => {
@@ -160,32 +237,19 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       setMessages([assistantMessage]);
       setQuestionCount(1);
       setCurrentPhase(getCurrentPhase(1));
+      startInactivityTimer(); // AI 첫 질문 후 무응답 타이머 시작
 
       if (isDevMode) {
         const latency = chatData._meta?.latency || (Date.now() - requestStartTime);
         addDebugData({ latency, requestBody, responseBody: chatData });
       }
 
-      // TTS 비동기 백그라운드 재생 (chat 완료 즉시 UI 해제, 음성은 준비되면 자동 재생)
+      // TTS 비동기 백그라운드 재생 (chat 완료 즉시 UI 해제, 재시도 포함)
       const ttsSeqId = ++ttsSeqRef.current;
-      (async () => {
-        const controller = new AbortController();
-        const ttsTimeout = setTimeout(() => controller.abort(), 15000);
-        try {
-          const r = await fetch('/api/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({ text: chatData.message }),
-            signal: controller.signal,
-          });
-          if (ttsSeqRef.current !== ttsSeqId || !r.ok) return;
-          const blob = await r.blob();
-          if (ttsSeqRef.current !== ttsSeqId) return;
-          updateAudioUrl(URL.createObjectURL(blob));
-        } catch { /* TTS 실패는 비치명적 — 텍스트는 이미 표시됨 */ } finally { clearTimeout(ttsTimeout); }
-      })();
+      playTtsWithRetry(chatData.message, ttsSeqId);
     } catch (error) {
       setIsInterviewStarted(false); // 실패 시 상태 복원
+      clearInactivityTimer();
       if (error instanceof DOMException && error.name === 'AbortError') {
         toast.error('요청 시간이 초과되었습니다. 다시 시도해주세요.');
         return;
@@ -196,7 +260,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       setIsLoading(false);
       isRequestingRef.current = false;
     }
-  }, [isInterviewStarted, isLoading, selectedJob, selectedCompany, interviewData, isDevMode, config, resumeText, addDebugData, clearAudioUrl, updateAudioUrl, cancelPendingRequest, fetchWithTimeout, updateRemaining, authHeaders]);
+  }, [isInterviewStarted, isLoading, selectedJob, selectedCompany, interviewData, isDevMode, config, resumeText, addDebugData, clearAudioUrl, cancelPendingRequest, fetchWithTimeout, updateRemaining, startInactivityTimer, clearInactivityTimer, playTtsWithRetry]);
 
   // 메시지 전송
   const sendMessage = useCallback(async (userMessage: string) => {
@@ -205,12 +269,13 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
     }
     if (isLoading || isRequestingRef.current) return; // 동시 요청 방지
 
-    isRequestingRef.current = true;
-
-    // 입력 길이 검증
+    // 입력 길이 검증 — isRequestingRef 설정 전에 해야 finally가 실행됨
     if (userMessage.length > MAX_USER_INPUT_LENGTH) {
       throw new Error(`입력이 너무 깁니다. 최대 ${MAX_USER_INPUT_LENGTH}자까지 입력 가능합니다.`);
     }
+
+    clearInactivityTimer(); // 사용자가 응답 시작 → 타이머 즉시 중단
+    isRequestingRef.current = true;
 
     cancelPendingRequest();
 
@@ -293,27 +358,15 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       // Phase 4: 서버에서 면접 종료 신호를 받았거나 클라이언트에서 한도 도달
       if (chatData.interview_ended || newQuestionCount >= TOTAL_QUESTION_COUNT) {
         setIsInterviewStarted(false);
+        clearInactivityTimer();
         toast.success('면접이 종료되었습니다. 분석을 시작하세요.');
+      } else {
+        startInactivityTimer(); // AI 다음 질문 후 무응답 타이머 재시작
       }
 
-      // TTS 비동기 백그라운드 재생 (chat 완료 즉시 UI 해제)
+      // TTS 비동기 백그라운드 재생 (chat 완료 즉시 UI 해제, 재시도 포함)
       const ttsSeqId = ++ttsSeqRef.current;
-      (async () => {
-        const controller = new AbortController();
-        const ttsTimeout = setTimeout(() => controller.abort(), 15000);
-        try {
-          const r = await fetch('/api/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({ text: chatData.message }),
-            signal: controller.signal,
-          });
-          if (ttsSeqRef.current !== ttsSeqId || !r.ok) return;
-          const blob = await r.blob();
-          if (ttsSeqRef.current !== ttsSeqId) return;
-          updateAudioUrl(URL.createObjectURL(blob));
-        } catch { /* TTS 실패는 비치명적 */ } finally { clearTimeout(ttsTimeout); }
-      })();
+      playTtsWithRetry(chatData.message, ttsSeqId);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         toast.error('요청 시간이 초과되었습니다. 다시 시도해주세요.');
@@ -324,7 +377,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       setIsLoading(false);
       isRequestingRef.current = false;
     }
-  }, [isInterviewStarted, isLoading, messages, interviewData, selectedJob, selectedCompany, questionCount, isDevMode, config, resumeText, addDebugData, updateAudioUrl, cancelPendingRequest, fetchWithTimeout, updateRemaining, authHeaders]);
+  }, [isInterviewStarted, isLoading, messages, interviewData, selectedJob, selectedCompany, questionCount, isDevMode, config, resumeText, addDebugData, cancelPendingRequest, fetchWithTimeout, updateRemaining, startInactivityTimer, clearInactivityTimer, playTtsWithRetry]);
 
   // 오디오 입력 처리
   const handleAudioInput = useCallback(async (audioBlob: Blob) => {
@@ -333,6 +386,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
     }
     if (isLoading) return; // 동시 요청 방지
 
+    clearInactivityTimer(); // 마이크 버튼 누름 → 타이머 즉시 중단
     cancelPendingRequest();
     setIsLoading(true);
 
@@ -381,18 +435,38 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       setIsLoading(false);
       throw error; // 상위에서 toast로 처리
     }
-  }, [isInterviewStarted, isLoading, sttModel, sendMessage, cancelPendingRequest, fetchWithTimeout]);
+  }, [isInterviewStarted, isLoading, sttModel, sendMessage, cancelPendingRequest, fetchWithTimeout, clearInactivityTimer]);
 
   // 면접 초기화
   const reset = useCallback(() => {
     cancelPendingRequest();
+    clearInactivityTimer();
     setMessages([]);
     setIsInterviewStarted(false);
+    setIsLoading(false);
+    setResumeText('');
     setQuestionCount(0);
     setCurrentPhase('intro');
-  }, [cancelPendingRequest]);
+  }, [cancelPendingRequest, clearInactivityTimer]);
 
-  const canAnalyze = isInterviewStarted && messages.length > 0 && questionCount >= 5;
+  // 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => clearInactivityTimer();
+  }, [clearInactivityTimer]);
+
+  // 면접 진행 중 페이지 이탈 경고
+  useEffect(() => {
+    if (!isInterviewStarted) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isInterviewStarted]);
+
+  // isInterviewStarted 조건 제거: 면접 정상 종료 후에도 분석 가능하게 수정
+  const canAnalyze = messages.length > 0 && questionCount >= 5;
 
   return {
     messages,
@@ -412,5 +486,8 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
     handleAudioInput,
     reset,
     canAnalyze,
+    timeoutModalType,
+    handleTimeoutContinue,
+    handleTimeoutEnd,
   };
 }

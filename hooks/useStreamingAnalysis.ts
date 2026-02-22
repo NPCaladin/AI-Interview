@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Message } from '@/lib/types';
@@ -26,6 +26,7 @@ export function useStreamingAnalysis({
   const { authHeaders } = useAuth();
   const [interviewReport, setInterviewReport] = useState<GameInterviewReport | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const analysisAbortRef = useRef<AbortController | null>(null);
   const [streamingState, setStreamingState] = useState<StreamingReportState>({
     isStreaming: false,
     progress: 0,
@@ -34,7 +35,7 @@ export function useStreamingAnalysis({
   });
 
   const startAnalysis = useCallback(async () => {
-    if (!isInterviewStarted || messages.length === 0 || questionCount < 5) {
+    if (messages.length === 0 || questionCount < 5) {
       throw new Error('최소 5개의 질문에 답변해야 분석할 수 있습니다.');
     }
 
@@ -48,11 +49,11 @@ export function useStreamingAnalysis({
 
     const ANALYSIS_TIMEOUT = 180_000; // 분석 최대 3분
     let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    const controller = new AbortController();
+    analysisAbortRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT);
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT);
-
       const response = await fetch('/api/analyze/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -64,7 +65,7 @@ export function useStreamingAnalysis({
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      // clearTimeout은 finally로 이동 — stream 읽기 단계까지 타임아웃 유지
 
       if (!response.ok) {
         throw new Error('스트리밍 분석 API 요청 실패');
@@ -221,30 +222,40 @@ export function useStreamingAnalysis({
 
       console.error('면접 분석 오류:', error);
       const isTimeout = error instanceof DOMException && error.name === 'AbortError';
+      const errorMessage = isTimeout
+        ? '분석 시간이 초과되었습니다. 다시 시도해주세요.'
+        : (error instanceof Error ? error.message : '분석 중 오류가 발생했습니다.');
       setStreamingState(prev => ({
         ...prev,
         isStreaming: false,
         currentStep: isTimeout ? '분석 시간 초과' : '오류 발생',
+        error: errorMessage,
       }));
       if (isTimeout) {
         throw new Error('분석 시간이 초과되었습니다. 다시 시도해주세요.');
       }
       throw error; // 상위에서 toast로 처리
     } finally {
+      clearTimeout(timeoutId); // fetch + 스트림 읽기 완료 후 타임아웃 해제
+      analysisAbortRef.current = null;
       setIsAnalyzing(false);
     }
   }, [isInterviewStarted, messages, questionCount, selectedJob, selectedCompany, setIsInterviewStarted, authHeaders]);
 
   const retryAnalysis = useCallback(() => {
     setInterviewReport(null);
-    setIsInterviewStarted(true);
     startAnalysis().catch((error) => {
       const msg = error instanceof Error ? error.message : '면접 분석에 실패했습니다.';
       toast.error(msg);
     });
-  }, [startAnalysis, setIsInterviewStarted]);
+  }, [startAnalysis]);
 
   const resetAnalysis = useCallback(() => {
+    // 진행 중인 스트림 중단
+    if (analysisAbortRef.current) {
+      analysisAbortRef.current.abort();
+      analysisAbortRef.current = null;
+    }
     setInterviewReport(null);
     setIsAnalyzing(false);
     setStreamingState({

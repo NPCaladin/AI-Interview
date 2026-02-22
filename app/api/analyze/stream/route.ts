@@ -23,7 +23,15 @@ function sendSSE(controller: ReadableStreamDefaultController, type: SSEEventType
 
 export async function POST(request: NextRequest) {
   try {
-    const body: AnalyzeStreamRequest = await request.json();
+    let body: AnalyzeStreamRequest;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ error: '잘못된 요청 형식입니다.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     const { messages, selected_job, selected_company } = body;
 
     // 유효성 검사
@@ -268,7 +276,7 @@ ${taggedConversation}
           controller.close();
         } catch (err) {
           logger.error('스트리밍 분석 오류:', err);
-          sendSSE(controller, 'error', { message: err instanceof Error ? err.message : '알 수 없는 오류' }, 0);
+          sendSSE(controller, 'error', { message: '분석 중 오류가 발생했습니다.' }, 0);
           controller.close();
         }
       },
@@ -284,7 +292,7 @@ ${taggedConversation}
   } catch (error) {
     logger.error('Analyze Stream API 오류:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : '서버 오류' }),
+      JSON.stringify({ error: '서버 오류가 발생했습니다.' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

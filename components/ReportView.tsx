@@ -4,8 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { Download, Trophy, Target, Zap, TrendingUp, MessageSquare, ChevronUp, FileText, RefreshCw, CheckCircle2, AlertTriangle, Star } from 'lucide-react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import type { GameInterviewReport, StreamingReportState, PremiumFeedbackItem } from '@/lib/types';
 import { SCORE_LABELS } from '@/lib/constants';
 import { toast } from 'sonner';
@@ -440,6 +438,11 @@ export default function ReportView({
     setIsDownloading(true);
 
     try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+
       const canvas = await html2canvas(reportRef.current, {
         scale: 2,
         useCORS: true,

@@ -332,7 +332,7 @@ export async function POST(request: NextRequest) {
         );
       }
       return NextResponse.json(
-        { error: `채팅 생성 실패: ${error.message}` },
+        { error: '서버 오류가 발생했습니다.' },
         { status: 500 }
       );
     }

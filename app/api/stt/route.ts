@@ -312,7 +312,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     logger.error('[STT API] 오류:', error?.message);
     return NextResponse.json(
-      { error: `STT 생성 실패: ${error.message || '알 수 없는 오류'}` },
+      { error: '서버 오류가 발생했습니다.' },
       { status: 500 }
     );
   }

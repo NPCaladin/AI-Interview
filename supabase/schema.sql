@@ -9,7 +9,7 @@ CREATE TABLE students (
   code VARCHAR(20) NOT NULL UNIQUE,
   name VARCHAR(100) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT true,
-  weekly_limit INTEGER NOT NULL DEFAULT 5,
+  weekly_limit INTEGER NOT NULL DEFAULT 3,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_students_code ON students(code);
