@@ -175,14 +175,14 @@ function EmptyState({
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full relative px-4 md:px-8">
+    <div className="flex flex-col items-center justify-between h-full relative px-4 md:px-8 py-4 md:py-6">
       {/* 배경 그리드 애니메이션 */}
       <div className="absolute inset-0 overflow-hidden opacity-30">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(0,242,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,242,255,0.03)_1px,transparent_1px)] bg-[size:50px_50px] animate-[grid-move_20s_linear_infinite]" />
       </div>
 
       {/* 메인 컨텐츠 */}
-      <div className="relative z-10 flex flex-col items-center">
+      <div className="relative z-10 flex flex-col items-center flex-1 justify-center">
 
         {/* 홀로그램 터미널 */}
         <div className="relative mb-8 md:mb-12 group">
@@ -301,7 +301,7 @@ function EmptyState({
       </div>
 
       {/* 하단 장식 - 모바일에서 숨김 */}
-      <div className="hidden md:flex absolute bottom-6 left-1/2 -translate-x-1/2 items-center gap-3">
+      <div className="hidden md:flex relative z-10 items-center gap-3 mt-4">
         <div className="w-20 h-px bg-gradient-to-r from-transparent to-[#00F2FF]/30" />
         <span className="text-xs font-mono text-gray-400 tracking-[0.2em]">EvenI INTERVIEW v2.0</span>
         <div className="w-20 h-px bg-gradient-to-l from-transparent to-[#8b5cf6]/30" />
