@@ -4,6 +4,7 @@ export interface AuthPayload {
   studentId: string;
   studentCode: string;
   studentName: string;
+  role?: 'student' | 'admin';
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -17,6 +18,14 @@ function getSecretKey(): Uint8Array {
 
 export async function signToken(payload: AuthPayload): Promise<string> {
   return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('24h')
+    .sign(getSecretKey());
+}
+
+export async function signAdminToken(): Promise<string> {
+  return new SignJWT({ role: 'admin' as const })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('24h')

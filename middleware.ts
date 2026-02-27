@@ -25,7 +25,7 @@ function getSecretKey(): Uint8Array {
 }
 
 // ── 경로 설정 ──
-const PUBLIC_PATHS = ['/api/auth/verify'];
+const PUBLIC_PATHS = ['/api/auth/verify', '/api/admin/auth'];
 
 // Rate limit 설정
 const AUTH_LIMIT = { max: 10, window: 60_000 };       // 인증: 10회/분 (IP 기반)
@@ -66,6 +66,27 @@ export async function middleware(request: NextRequest) {
 
   try {
     const { payload } = await jwtVerify(token, getSecretKey());
+
+    // ── admin 라우트 분기 ──
+    if (pathname.startsWith('/api/admin/')) {
+      if (payload.role !== 'admin') {
+        return NextResponse.json(
+          { error: '관리자 권한이 필요합니다.' },
+          { status: 403 }
+        );
+      }
+      // admin rate limit (IP 기반, 60회/분)
+      const rl = await rateLimit(`admin:${clientIp}`, 60, 60_000);
+      if (!rl.ok) {
+        return NextResponse.json(
+          { error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+          { status: 429, headers: { 'Retry-After': String(rl.retryAfter || 60) } }
+        );
+      }
+      return NextResponse.next();
+    }
+
+    // ── 학생 라우트 ──
     const studentId = payload.studentId as string;
 
     if (!studentId) {

@@ -25,6 +25,14 @@ export async function POST(request: NextRequest) {
 
     const normalizedCode = code.trim().toUpperCase();
 
+    // 코드 형식 검증: 영문 대문자·숫자·하이픈, 3~30자 (SQL Injection / 무의미한 쿼리 방지)
+    if (!/^[A-Z0-9\-]{3,30}$/.test(normalizedCode)) {
+      return NextResponse.json(
+        { error: '유효하지 않은 학생 코드입니다.' },
+        { status: 400 }
+      );
+    }
+
     // students 테이블에서 조회
     const { data: student, error: queryError } = await supabase
       .from('students')
