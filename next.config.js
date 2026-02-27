@@ -24,7 +24,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
               "img-src 'self' data: blob:",
               "font-src 'self' data: https://cdn.jsdelivr.net",
-              "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.upstash.io",
+              "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.upstash.io https://cdn.jsdelivr.net",
               "media-src 'self' blob:",
               "object-src 'none'",
               "frame-ancestors 'none'",
