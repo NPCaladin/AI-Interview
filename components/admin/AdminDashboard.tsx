@@ -6,6 +6,8 @@ import { LogOut, RefreshCw, UserPlus, Loader2, AlertCircle } from 'lucide-react'
 import StatsCards from './StatsCards';
 import StudentTable from './StudentTable';
 import StudentFormModal from './StudentFormModal';
+import UsageChart from './UsageChart';
+import RecentLogs from './RecentLogs';
 
 interface Stats {
   totalStudents: number;
@@ -22,6 +24,7 @@ interface Student {
   is_active: boolean;
   created_at: string;
   weekly_usage: number;
+  total_usage: number;
 }
 
 export default function AdminDashboard() {
@@ -128,6 +131,16 @@ export default function AdminDashboard() {
             <StatsCards stats={stats} />
           </div>
         )}
+
+        {/* 이용 현황 */}
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <UsageChart />
+          </div>
+          <div>
+            <RecentLogs />
+          </div>
+        </div>
 
         {/* 학생 목록 */}
         <div>

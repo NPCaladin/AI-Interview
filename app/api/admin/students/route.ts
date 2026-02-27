@@ -26,23 +26,24 @@ export async function GET() {
     weekStart.setDate(now.getDate() - daysFromMonday);
     weekStart.setHours(0, 0, 0, 0);
 
-    // 이번 주 usage_logs 조회
-    const { data: usageLogs, error: usageError } = await supabase
+    // 전체 usage_logs 조회 (주간 + 누적 동시 집계)
+    const { data: allLogs, error: usageError } = await supabase
       .from('usage_logs')
-      .select('student_id')
-      .gte('created_at', weekStart.toISOString());
+      .select('student_id, created_at');
 
     if (usageError) {
       logger.error('[Admin Students GET] Usage query error:', usageError);
     }
 
-    // student_id별 사용량 집계
-    const usageMap = new Map<string, number>();
-    if (usageLogs) {
-      usageLogs.forEach((log: { student_id: string }) => {
-        usageMap.set(log.student_id, (usageMap.get(log.student_id) || 0) + 1);
-      });
-    }
+    // 주간 / 누적 집계
+    const weeklyMap = new Map<string, number>();
+    const totalMap = new Map<string, number>();
+    (allLogs || []).forEach((log: { student_id: string; created_at: string }) => {
+      totalMap.set(log.student_id, (totalMap.get(log.student_id) || 0) + 1);
+      if (new Date(log.created_at) >= weekStart) {
+        weeklyMap.set(log.student_id, (weeklyMap.get(log.student_id) || 0) + 1);
+      }
+    });
 
     const result = (students || []).map((s: {
       id: string;
@@ -53,7 +54,8 @@ export async function GET() {
       created_at: string;
     }) => ({
       ...s,
-      weekly_usage: usageMap.get(s.id) || 0,
+      weekly_usage: weeklyMap.get(s.id) || 0,
+      total_usage: totalMap.get(s.id) || 0,
     }));
 
     return NextResponse.json({ students: result });

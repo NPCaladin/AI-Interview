@@ -13,6 +13,7 @@ interface Student {
   is_active: boolean;
   created_at: string;
   weekly_usage: number;
+  total_usage: number;
 }
 
 interface StudentTableProps {
@@ -154,6 +155,7 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">상태</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">주간제한</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">이번 주</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">누적</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-400">가입일</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">액션</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">관리</th>
@@ -162,7 +164,7 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-500 text-sm">
+                  <td colSpan={9} className="text-center py-12 text-gray-500 text-sm">
                     {search || filter !== 'all' ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}
                   </td>
                 </tr>
@@ -196,6 +198,9 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
                       >
                         {student.weekly_usage}/{student.weekly_limit}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-xs text-gray-400 font-tech">{student.total_usage}회</span>
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(student.created_at)}</td>
                     <td className="px-4 py-3">
