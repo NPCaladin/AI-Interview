@@ -108,8 +108,8 @@ export async function POST(request: NextRequest) {
       logger.info(`[Chat API] Usage consumed. Remaining: ${usageRemaining}`);
     }
 
-    // Phase 4: 서버사이드 강제 종료
-    if (safeQuestionCount >= TOTAL_QUESTION_COUNT) {
+    // Phase 4: 서버사이드 강제 종료 (안전망 — 마무리 턴(12) 이후에만 작동)
+    if (safeQuestionCount > TOTAL_QUESTION_COUNT) {
       logger.info(`[Chat API] 면접 종료 (question_count ${safeQuestionCount})`);
       return NextResponse.json(
         {
@@ -301,10 +301,14 @@ export async function POST(request: NextRequest) {
     const latency = Date.now() - startTime;
     logger.debug('[Chat API] 총 응답 시간:', latency, 'ms');
 
+    // 마무리 턴(questionCount >= 12): AI가 종료 인사 후 면접 종료 신호
+    const isClosingTurn = safeQuestionCount >= TOTAL_QUESTION_COUNT;
+
     return NextResponse.json(
       {
         message: assistantMessage,
         role: 'assistant',
+        ...(isClosingTurn && { interview_ended: true }),
         ...(usageRemaining !== undefined && { remaining: usageRemaining }),
         ...(config && {
           _meta: {

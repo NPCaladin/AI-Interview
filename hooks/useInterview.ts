@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getCurrentPhase, generateId } from '@/lib/utils';
 import type { InterviewData } from '@/lib/utils';
 import type { Message } from '@/lib/types';
-import { TOTAL_QUESTION_COUNT, MAX_USER_INPUT_LENGTH, CLIENT_FETCH_TIMEOUT, INACTIVITY_WARNING_MS, INACTIVITY_AUTO_END_MS } from '@/lib/constants';
+import { MAX_USER_INPUT_LENGTH, CLIENT_FETCH_TIMEOUT, INACTIVITY_WARNING_MS, INACTIVITY_AUTO_END_MS } from '@/lib/constants';
 
 interface UseInterviewOptions {
   sttModel: 'OpenAI Whisper' | 'Daglo';
@@ -355,8 +355,8 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       setQuestionCount(newQuestionCount);
       setCurrentPhase(getCurrentPhase(newQuestionCount));
 
-      // Phase 4: 서버에서 면접 종료 신호를 받았거나 클라이언트에서 한도 도달
-      if (chatData.interview_ended || newQuestionCount >= TOTAL_QUESTION_COUNT) {
+      // Phase 4: 서버에서 면접 종료 신호를 받았을 때만 종료
+      if (chatData.interview_ended) {
         setIsInterviewStarted(false);
         clearInactivityTimer();
         toast.success('면접이 종료되었습니다. 분석을 시작하세요.');
