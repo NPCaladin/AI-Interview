@@ -168,7 +168,7 @@ export default function HowToUsePage() {
                 </div>
                 <div className="p-3 rounded-lg bg-[#8b5cf6]/5 border border-[#8b5cf6]/20">
                   <p className="text-xs font-semibold text-[#8b5cf6] mb-1">세션 유지</p>
-                  <p className="text-xs text-gray-400 font-sans">로그인 상태는 브라우저 탭을 닫아도 24시간 동안 유지됩니다. 로그아웃하려면 사이드바 하단 "로그아웃" 버튼을 누르세요.</p>
+                  <p className="text-xs text-gray-400 font-sans">로그인 상태는 브라우저 탭을 닫아도 24시간 동안 유지됩니다. 로그아웃하려면 사이드바 하단 &ldquo;로그아웃&rdquo; 버튼을 누르세요.</p>
                 </div>
               </div>
               <Warning>코드는 개인 전용입니다. 타인과 공유하지 마세요. 부정 사용 시 계정이 비활성화될 수 있습니다.</Warning>
@@ -338,7 +338,7 @@ export default function HowToUsePage() {
                   </div>
                 </div>
               </div>
-              <Warning>마이크 권한이 "차단"으로 설정된 경우 주소창 왼쪽 🔒 아이콘을 클릭해 마이크를 "허용"으로 변경하세요.</Warning>
+              <Warning>마이크 권한이 &ldquo;차단&rdquo;으로 설정된 경우 주소창 왼쪽 🔒 아이콘을 클릭해 마이크를 &ldquo;허용&rdquo;으로 변경하세요.</Warning>
             </Card>
           </section>
 
@@ -413,11 +413,11 @@ export default function HowToUsePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-400 font-sans">
                   <div className="flex gap-2">
                     <span className="font-tech text-yellow-400 flex-shrink-0">3분</span>
-                    <span>무응답 시 경고 팝업이 나타납니다. "계속하기"를 누르면 면접을 이어갈 수 있습니다.</span>
+                    <span>무응답 시 경고 팝업이 나타납니다. &ldquo;계속하기&rdquo;를 누르면 면접을 이어갈 수 있습니다.</span>
                   </div>
                   <div className="flex gap-2">
                     <span className="font-tech text-red-400 flex-shrink-0">4분</span>
-                    <span>무응답이 지속되면 면접이 자동으로 종료됩니다. 팝업에서 "지금 분석하기"를 선택하면 즉시 리포트를 받을 수 있습니다.</span>
+                    <span>무응답이 지속되면 면접이 자동으로 종료됩니다. 팝업에서 &ldquo;지금 분석하기&rdquo;를 선택하면 즉시 리포트를 받을 수 있습니다.</span>
                   </div>
                 </div>
               </div>
@@ -490,7 +490,7 @@ export default function HowToUsePage() {
                       <p className="text-xs font-semibold text-yellow-400 font-sans">면접관 음성이 안 들릴 때</p>
                     </div>
                     <p className="text-xs text-gray-400 font-sans leading-relaxed">
-                      브라우저 자동재생 정책으로 음성이 막힐 수 있습니다. 화면 하단에 <strong className="text-white">"면접관 음성 재생"</strong> 버튼이 나타나면 클릭하세요.
+                      브라우저 자동재생 정책으로 음성이 막힐 수 있습니다. 화면 하단에 <strong className="text-white">&ldquo;면접관 음성 재생&rdquo;</strong> 버튼이 나타나면 클릭하세요.
                     </p>
                   </div>
                 </div>
@@ -546,8 +546,8 @@ export default function HowToUsePage() {
                 ))}
               </div>
 
-              <Tip>분석 결과를 최대한 활용하려면 각 항목의 "개선 포인트"를 메모하고, 다음 면접에서 집중적으로 보완하세요. 반복 연습이 가장 효과적입니다.</Tip>
-              <Warning>분석 중에는 브라우저를 닫거나 페이지를 이탈하지 마세요. 분석이 중단되면 "다시 분석" 버튼으로 재시도할 수 있습니다.</Warning>
+              <Tip>분석 결과를 최대한 활용하려면 각 항목의 &ldquo;개선 포인트&rdquo;를 메모하고, 다음 면접에서 집중적으로 보완하세요. 반복 연습이 가장 효과적입니다.</Tip>
+              <Warning>분석 중에는 브라우저를 닫거나 페이지를 이탈하지 마세요. 분석이 중단되면 &ldquo;다시 분석&rdquo; 버튼으로 재시도할 수 있습니다.</Warning>
             </Card>
           </section>
 
