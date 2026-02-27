@@ -17,8 +17,7 @@ export async function GET() {
       return NextResponse.json({ error: '로그 조회 실패' }, { status: 500 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const logs = (data || []).map((log: any) => ({
+    const logs = (data || []).map((log: Record<string, unknown>) => ({
       id: log.id as string,
       code: (Array.isArray(log.students) ? log.students[0]?.code : log.students?.code) ?? '알 수 없음',
       created_at: log.created_at as string,
