@@ -50,7 +50,7 @@ export function useStreamingAnalysis({
       partialReport: null,
     });
 
-    const ANALYSIS_TIMEOUT = 180_000; // 분석 최대 3분
+    const ANALYSIS_TIMEOUT = 300_000; // 분석 최대 5분 (Vercel maxDuration과 동일)
     let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
     const controller = new AbortController();
     analysisAbortRef.current = controller;

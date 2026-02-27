@@ -140,23 +140,21 @@ ${taggedConversation}
             return;
           }
 
-          // 4. 상세 분석 (질문별, 3개씩 분할 - 토큰 초과 방지)
+          // 4. 상세 분석 (질문별, 3개씩 분할 - 병렬 실행으로 속도 최적화)
           const questionChunks = chunkQuestionNumbers(questionCount, 3);
           const allDetailedFeedback: unknown[] = [];
           const analyzedQuestions = new Set<number>(); // 분석 완료된 질문 추적
 
-          logger.debug(`[분석] 총 ${questionCount}개 질문, ${questionChunks.length}개 청크로 분할:`, questionChunks);
+          logger.debug(`[분석] 총 ${questionCount}개 질문, ${questionChunks.length}개 청크로 분할 (병렬):`, questionChunks);
 
-          for (let chunkIndex = 0; chunkIndex < questionChunks.length; chunkIndex++) {
-            const questionNumbers = questionChunks[chunkIndex];
-            const progress = 40 + Math.round((chunkIndex / questionChunks.length) * 50);
+          sendSSE(controller, 'detail_progress', {
+            message: `Q1~Q${questionCount} 상세 분석 중...`,
+            chunk_index: 0,
+            question_numbers: Array.from({ length: questionCount }, (_, i) => i + 1),
+          }, 45);
 
-            sendSSE(controller, 'detail_progress', {
-              message: `Q${questionNumbers[0]}~Q${questionNumbers[questionNumbers.length - 1]} 분석 중...`,
-              chunk_index: chunkIndex,
-              question_numbers: questionNumbers,
-            }, progress);
-
+          // 각 청크를 병렬로 실행하는 함수
+          const analyzeChunk = async (chunkIndex: number, questionNumbers: number[]): Promise<unknown[]> => {
             const detailPrompt = DETAIL_ANALYSIS_PROMPT(selected_job, questionNumbers, selected_company);
             const detailUserPrompt = `다음은 면접 대화 로그입니다. Q${questionNumbers[0]}~Q${questionNumbers[questionNumbers.length - 1]}번 질문에 대한 상세 분석을 수행해주세요.
 
@@ -165,10 +163,8 @@ ${taggedConversation}
 
 반드시 유효한 JSON만 반환하세요. detailed_feedback 배열에 정확히 ${questionNumbers.length}개의 질문 분석을 포함해야 합니다.`;
 
-            // 최대 2번 재시도
             let retryCount = 0;
             const maxRetries = 2;
-            let chunkFeedback: unknown[] = [];
 
             while (retryCount <= maxRetries) {
               try {
@@ -179,7 +175,7 @@ ${taggedConversation}
                     { role: 'user', content: detailUserPrompt },
                   ],
                   temperature: 0.3,
-                  max_tokens: 8000, // 토큰 충분히 확보
+                  max_tokens: 8000,
                   response_format: { type: 'json_object' },
                 });
 
@@ -193,24 +189,14 @@ ${taggedConversation}
                 if (detailText) {
                   const detailResult = JSON.parse(detailText);
 
-                  // detailed_feedback 배열 찾기 (다양한 키 이름 지원)
                   const feedbackArray = detailResult.detailed_feedback
                     || detailResult.detailedFeedback
                     || detailResult.feedback
                     || [];
 
                   if (Array.isArray(feedbackArray) && feedbackArray.length > 0) {
-                    chunkFeedback = feedbackArray;
-
-                    // 분석된 질문 번호 추적
-                    feedbackArray.forEach((fb: any) => {
-                      if (fb.question_number) {
-                        analyzedQuestions.add(fb.question_number);
-                      }
-                    });
-
                     logger.debug(`[분석] 청크 ${chunkIndex} 성공: ${feedbackArray.length}개 질문 분석됨`);
-                    break; // 성공 시 루프 탈출
+                    return feedbackArray;
                   } else {
                     logger.warn(`[분석] 청크 ${chunkIndex} 응답에 피드백 배열 없음, 재시도 ${retryCount + 1}/${maxRetries}`);
                     retryCount++;
@@ -222,27 +208,42 @@ ${taggedConversation}
               } catch (err) {
                 logger.error(`[분석] 청크 ${chunkIndex} 오류 (재시도 ${retryCount + 1}/${maxRetries}):`, err);
                 retryCount++;
-
-                if (retryCount > maxRetries) {
-                  break;
-                }
-                // 재시도 전 짧은 대기
+                if (retryCount > maxRetries) break;
                 await new Promise(resolve => setTimeout(resolve, 1000));
               }
             }
 
-            // 결과 추가
-            if (chunkFeedback.length > 0) {
-              allDetailedFeedback.push(...chunkFeedback);
+            return []; // 모든 재시도 실패
+          }
+
+          // 모든 청크 병렬 실행
+          const chunkResults = await Promise.allSettled(
+            questionChunks.map((questionNumbers, chunkIndex) =>
+              analyzeChunk(chunkIndex, questionNumbers)
+            )
+          );
+
+          // 결과 수집
+          chunkResults.forEach((result, chunkIndex) => {
+            const questionNumbers = questionChunks[chunkIndex];
+            const feedback = result.status === 'fulfilled' ? result.value : [];
+
+            if (feedback.length > 0) {
+              allDetailedFeedback.push(...feedback);
+              feedback.forEach((fb: any) => {
+                if (fb.question_number) {
+                  analyzedQuestions.add(fb.question_number);
+                }
+              });
             }
 
             sendSSE(controller, 'detail', {
               chunk_index: chunkIndex,
               question_numbers: questionNumbers,
-              feedback: chunkFeedback,
-              error: chunkFeedback.length === 0,
-            }, progress + 10);
-          }
+              feedback,
+              error: feedback.length === 0,
+            }, 50 + Math.round(((chunkIndex + 1) / questionChunks.length) * 40));
+          });
 
           // 누락된 질문 확인 및 로깅
           const missingQuestions: number[] = [];
