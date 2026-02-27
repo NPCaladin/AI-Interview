@@ -19,7 +19,7 @@ export async function GET() {
 
     const logs = (data || []).map((log: Record<string, unknown>) => ({
       id: log.id as string,
-      code: (Array.isArray(log.students) ? log.students[0]?.code : log.students?.code) ?? '알 수 없음',
+      code: (Array.isArray(log.students) ? (log.students as { code: string }[])[0]?.code : (log.students as { code: string } | null)?.code) ?? '알 수 없음',
       created_at: log.created_at as string,
     }));
 
