@@ -151,7 +151,7 @@ export default function Home() {
       )}
 
       <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-4 md:py-6">
-        {interviewReport || streamingState.isStreaming ? (
+        {interviewReport || streamingState.isStreaming || streamingState.error ? (
           <ReportView
             report={interviewReport || streamingState.partialReport}
             messages={messages}

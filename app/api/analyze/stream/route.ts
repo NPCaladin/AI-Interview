@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
+
+export const maxDuration = 300; // Vercel 최대 실행 시간 5분 (Pro 이상)
 import { logger } from '@/lib/logger';
 import { SUMMARY_ANALYSIS_PROMPT, DETAIL_ANALYSIS_PROMPT, chunkQuestionNumbers, tagConversation } from '@/lib/prompts-stream';
 import { analyzeMultipleAnswers } from '@/lib/starAnalyzer';

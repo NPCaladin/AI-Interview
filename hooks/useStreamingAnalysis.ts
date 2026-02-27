@@ -39,6 +39,9 @@ export function useStreamingAnalysis({
       throw new Error('최소 5개의 질문에 답변해야 분석할 수 있습니다.');
     }
 
+    // 동시 분석 방지
+    if (analysisAbortRef.current) return;
+
     setIsAnalyzing(true);
     setStreamingState({
       isStreaming: true,
@@ -217,8 +220,8 @@ export function useStreamingAnalysis({
         }
       }
     } catch (error) {
-      // 스트림 리더 정리
-      try { reader?.cancel(); } catch { /* ignore */ }
+      // 스트림 리더 정리 (비동기 cancel의 rejection도 무시)
+      reader?.cancel().catch(() => { /* ignore */ });
 
       console.error('면접 분석 오류:', error);
       const isTimeout = error instanceof DOMException && error.name === 'AbortError';
@@ -240,7 +243,7 @@ export function useStreamingAnalysis({
       analysisAbortRef.current = null;
       setIsAnalyzing(false);
     }
-  }, [isInterviewStarted, messages, questionCount, selectedJob, selectedCompany, setIsInterviewStarted, authHeaders]);
+  }, [messages, questionCount, selectedJob, selectedCompany, setIsInterviewStarted, authHeaders]);
 
   const retryAnalysis = useCallback(() => {
     setInterviewReport(null);

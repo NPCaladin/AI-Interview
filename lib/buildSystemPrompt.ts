@@ -1,5 +1,5 @@
 import type { InterviewData } from './types';
-import { 기술질문없는직군, INTERVIEWER_ROLE_RULE, FOLLOWUP_LIMITS } from './constants';
+import { 기술질문없는직군, INTERVIEWER_ROLE_RULE, FOLLOWUP_LIMITS, CONTEXTUAL_PATTERNS, CONTEXTUAL_QUESTION_GUARD_RULE } from './constants';
 import { filterQuestionsByCompany, removeCompanyTagFromQuestion } from './utils';
 import { buildUsedQuestionsBlocklist } from './questionDedup';
 import { extractConversationState, analyzeAnswerSpecificity } from './conversationState';
@@ -53,6 +53,23 @@ function buildFollowupDecisionPrompt(
   }
 
   return instruction;
+}
+
+/**
+ * 맥락 가정 질문 감지
+ * @returns null(안전) 또는 { category, description }(감지됨)
+ */
+function isContextualQuestion(
+  question: string
+): { category: string; description: string } | null {
+  for (const item of CONTEXTUAL_PATTERNS) {
+    for (const pattern of item.patterns) {
+      if (pattern.test(question)) {
+        return { category: item.category, description: item.description };
+      }
+    }
+  }
+  return null;
 }
 
 export function buildSystemPrompt(
@@ -208,15 +225,23 @@ ${sanitizedResume}
         const selectedQuestion =
           questionsPool[questionIndex % questionsPool.length];
 
+        const detected = isContextualQuestion(selectedQuestion);
+        const contextualWarning = detected
+          ? `
+🚫 [맥락 가정 질문 감지: ${detected.category}] — "${detected.description}"
+이 참고용 질문은 지원자가 해당 상황(${detected.category})을 대화에서 직접 언급하거나 자소서에 명시한 경우에만 사용하세요.
+확인되지 않았다면 이 질문을 완전히 건너뛰고, 직무 역량(게임 센스, 데이터 분석, 협업, 사업 이해, 기술 역량, 문제 해결) 중 하나로 새 질문을 생성하세요.`
+          : '';
+
         stageInstruction = `
 ## [시나리오 통제] 지금은 ${questionCount + 1}번째 질문입니다 (직무 검증 단계).
 
 **참고용 질문:**
 
 "${selectedQuestion}"
+${contextualWarning}
 
 ⚠️ 질문 앞에 있는 [넥슨], [공통] 같은 괄호 태그는 절대 읽지 마세요.
-⚠️ 질문 내용이 지원자의 상황(예: 경력직 질문인데 지원자는 신입)과 맞지 않으면, 맥락에 맞게 질문을 변형해서 물어보세요.
 
 **질문 전략:**
 1. 먼저 지원자의 이전 답변에 대한 짧은 리액션을 하세요.
@@ -252,12 +277,21 @@ ${sanitizedResume}
       const selectedQuestion =
         personalityQuestions[questionIndex % personalityQuestions.length];
 
+      const detected = isContextualQuestion(selectedQuestion);
+      const contextualWarning = detected
+        ? `
+🚫 [맥락 가정 질문 감지: ${detected.category}] — "${detected.description}"
+이 참고용 질문은 지원자가 해당 상황(${detected.category})을 대화에서 직접 언급하거나 자소서에 명시한 경우에만 사용하세요.
+확인되지 않았다면 이 질문을 완전히 건너뛰고, 조직 적합도나 직무 로열티 관련 다른 인성 질문을 생성하세요.`
+        : '';
+
       stageInstruction = `
 ## [시나리오 통제] 지금은 ${questionCount + 1}번째 질문입니다 (인성 검증 단계).
 
 **참고용 질문:**
 
 "${selectedQuestion}"
+${contextualWarning}
 
 ⚠️ 질문 앞에 있는 [넥슨], [공통] 같은 괄호 태그는 절대 읽지 마세요.
 
@@ -422,6 +456,8 @@ ${sanitizedResume}
 ${questionBlocklist}
 
 ${INTERVIEWER_ROLE_RULE}
+
+${CONTEXTUAL_QUESTION_GUARD_RULE}
 
 ${companyInstruction}
 
