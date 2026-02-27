@@ -43,6 +43,12 @@ export default function Header({ isMobileMenuOpen = false, onMobileMenuToggle }:
           {/* 네비게이션 - 데스크톱 */}
           <nav className="hidden md:flex items-center gap-2">
             <Link
+              href="/how-to-use"
+              className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-all duration-300"
+            >
+              사용 가이드
+            </Link>
+            <Link
               href="/guide"
               className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-all duration-300"
             >
