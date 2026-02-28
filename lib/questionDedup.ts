@@ -143,7 +143,7 @@ export function isSimilarQuestion(q1: string, q2: string): boolean {
   const nouns1 = extractCoreNouns(q1);
   const nouns2 = extractCoreNouns(q2);
   const nounOverlap = nouns1.filter((n) => nouns2.includes(n));
-  if (nounOverlap.length >= 2) {
+  if (nounOverlap.length >= 3) {
     return true;
   }
 

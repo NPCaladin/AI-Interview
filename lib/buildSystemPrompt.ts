@@ -220,7 +220,7 @@ ${sanitizedResume}
 
 "${pickVariant(motivationVariants)}"
 
-⚠️ 절대 다른 질문을 하지 마세요. 위 질문만 정확히 하세요.
+⚠️ 먼저 자기소개 답변에 대해 한 줄 짧은 리액션("알겠습니다", "그렇군요" 수준)을 하고, 위 질문만 하세요. 칭찬은 금지입니다.
 `;
   } else if (questionCount === 2) {
     stageInstruction = `
@@ -228,7 +228,7 @@ ${sanitizedResume}
 
 "${pickVariant(jobChoiceVariants)}"
 
-⚠️ 절대 다른 질문을 하지 마세요. 위 질문만 정확히 하세요.
+⚠️ 먼저 직전 답변에 대해 한 줄 짧은 리액션("알겠습니다", "그렇군요" 수준)을 하고, 위 질문만 하세요. 칭찬은 금지입니다.
 `;
   } else if (questionCount === 3) {
     stageInstruction = `
@@ -236,7 +236,7 @@ ${sanitizedResume}
 
 "${pickVariant(competencyVariants)}"
 
-⚠️ 절대 다른 질문을 하지 마세요. 위 질문만 정확히 하세요.
+⚠️ 먼저 직전 답변에 대해 한 줄 짧은 리액션("알겠습니다", "그렇군요" 수준)을 하고, 위 질문만 하세요. 칭찬은 금지입니다.
 `;
   } else if (questionCount === 4) {
     stageInstruction = `
@@ -244,16 +244,19 @@ ${sanitizedResume}
 
 "${pickVariant(preparationVariants)}"
 
-⚠️ 절대 다른 질문을 하지 마세요. 위 질문만 정확히 하세요.
+⚠️ 먼저 직전 답변에 대해 한 줄 짧은 리액션("알겠습니다", "그렇군요" 수준)을 하고, 위 질문만 하세요. 칭찬은 금지입니다.
 `;
   } else if (questionCount >= 5 && questionCount <= 8) {
     const is기술질문없는직군 = 기술질문없는직군.includes(selectedJob);
 
     if (is기술질문없는직군) {
+      const techlessbridge = questionCount === 5
+        ? `직전 준비 과정 답변에 간단히 반응한 뒤, "그럼 이제 직무 관련 경험으로 넘어가겠습니다." 같은 자연스러운 전환 문구를 사용하세요.\n`
+        : '';
       stageInstruction = `
 ## [시나리오 통제] 지금은 ${questionCount + 1}번째 질문입니다 (직무 검증 단계).
 
-이 직군은 기술 질문이 없으므로, 기본 질문(자기소개, 지원동기, 직무선택, 역량, 노력)을 마친 후 자유롭게 질문하세요.
+${techlessbridge}이 직군은 기술 질문이 없으므로, 기본 질문(자기소개, 지원동기, 직무선택, 역량, 노력)을 마친 후 자유롭게 질문하세요.
 
 **질문 전략:**
 1. 먼저 지원자의 이전 답변에 대한 짧은 리액션을 하세요.
@@ -280,33 +283,31 @@ ${sanitizedResume}
       if (questionsPool.length > 0) {
         const seed = getSessionSeed(messages);
         const shuffledPool = seededShuffle(questionsPool, seed);
-        const questionIndex = questionCount - 5;
-        const selectedQuestion =
-          shuffledPool[questionIndex % shuffledPool.length];
+        const candidateQuestions = shuffledPool.slice(0, Math.min(6, shuffledPool.length));
+        const candidateListStr = candidateQuestions.map((q, idx) => {
+          const detected = isContextualQuestion(q);
+          const marker = detected ? ` 🚫[${detected.category}: ${detected.description}]` : '';
+          return `${idx + 1}. "${q}"${marker}`;
+        }).join('\n');
 
-        const detected = isContextualQuestion(selectedQuestion);
-        const contextualWarning = detected
-          ? `
-🚫 [맥락 가정 질문 감지: ${detected.category}] — "${detected.description}"
-이 참고용 질문은 지원자가 해당 상황(${detected.category})을 대화에서 직접 언급하거나 자소서에 명시한 경우에만 사용하세요.
-확인되지 않았다면 이 질문을 완전히 건너뛰고, 직무 역량(게임 센스, 데이터 분석, 협업, 사업 이해, 기술 역량, 문제 해결) 중 하나로 새 질문을 생성하세요.`
+        const transitionBridge = questionCount === 5
+          ? `먼저 직전 준비 과정 답변에 간단히 반응한 뒤,\n"그럼 이제 직무 관련 질문으로 넘어가겠습니다." 같은 자연스러운 전환 문구를 사용하고,\n아래 참고 질문 중 하나를 선택하여 질문하세요.\n`
           : '';
 
         stageInstruction = `
 ## [시나리오 통제] 지금은 ${questionCount + 1}번째 질문입니다 (직무 검증 단계).
 
-**참고용 질문:**
+${transitionBridge}**직무 검증 참고 질문 목록** (아직 사용하지 않은 것 중 1개를 상황에 맞게 선택하세요):
+${candidateListStr}
 
-"${selectedQuestion}"
-${contextualWarning}
-
+🚫 표시된 질문은 지원자가 해당 상황을 대화에서 직접 언급하거나 자소서에 명시한 경우에만 사용하세요. 확인되지 않았다면 건너뛰세요.
 ⚠️ 질문 앞에 있는 [넥슨], [공통] 같은 괄호 태그는 절대 읽지 마세요.
 
 **질문 전략:**
 1. 먼저 지원자의 이전 답변에 대한 짧은 리액션을 하세요.
-2. 지원자의 답변이 충분하면 → "잘 들었습니다. 그럼..." 같은 전환 문구를 사용하여 위 참고용 질문을 자연스럽게 연결하세요.
+2. 지원자의 답변이 충분하면 → 위 목록에서 아직 사용하지 않은 질문 1개를 선택하여 자연스럽게 연결하세요.
 3. 지원자의 답변이 부족하면 → 꼬리질문으로 압박하세요. 참고용 질문은 나중에 사용하세요.
-4. 참고용 질문을 사용할 때도 이전 대화 맥락과 연결하세요.
+4. 이전에 사용한 질문은 절대 다시 사용하지 마세요 (상단 블랙리스트 참고).
 5. 자소서가 제공된 경우, 자소서 내용(경험/수치/역할/기간)을 우선 검증하세요.
 `;
       } else {
@@ -338,33 +339,31 @@ ${contextualWarning}
     if (personalityQuestions.length > 0) {
       const seed = getSessionSeed(messages);
       const shuffledPersonality = seededShuffle(personalityQuestions, seed + 7); // 다른 시드로 직무 질문과 독립적으로 셔플
-      const questionIndex = questionCount - 9;
-      const selectedQuestion =
-        shuffledPersonality[questionIndex % shuffledPersonality.length];
+      const candidatePersonality = shuffledPersonality.slice(0, Math.min(6, shuffledPersonality.length));
+      const candidatePersonalityStr = candidatePersonality.map((q, idx) => {
+        const detected = isContextualQuestion(q);
+        const marker = detected ? ` 🚫[${detected.category}: ${detected.description}]` : '';
+        return `${idx + 1}. "${q}"${marker}`;
+      }).join('\n');
 
-      const detected = isContextualQuestion(selectedQuestion);
-      const contextualWarning = detected
-        ? `
-🚫 [맥락 가정 질문 감지: ${detected.category}] — "${detected.description}"
-이 참고용 질문은 지원자가 해당 상황(${detected.category})을 대화에서 직접 언급하거나 자소서에 명시한 경우에만 사용하세요.
-확인되지 않았다면 이 질문을 완전히 건너뛰고, 조직 적합도나 직무 로열티 관련 다른 인성 질문을 생성하세요.`
+      const personalityBridge = questionCount === 9
+        ? `직무 관련 질문을 마쳤습니다. "이제 업무 방식이나 팀워크 관련 질문을 드리겠습니다." 같은\n전환 문구로 자연스럽게 인성 단계로 넘어가세요.\n`
         : '';
 
       stageInstruction = `
 ## [시나리오 통제] 지금은 ${questionCount + 1}번째 질문입니다 (인성 검증 단계).
 
-**참고용 질문:**
+${personalityBridge}**인성 검증 참고 질문 목록** (아직 사용하지 않은 것 중 1개를 상황에 맞게 선택하세요):
+${candidatePersonalityStr}
 
-"${selectedQuestion}"
-${contextualWarning}
-
+🚫 표시된 질문은 지원자가 해당 상황을 대화에서 직접 언급하거나 자소서에 명시한 경우에만 사용하세요. 확인되지 않았다면 건너뛰세요.
 ⚠️ 질문 앞에 있는 [넥슨], [공통] 같은 괄호 태그는 절대 읽지 마세요.
 
 **질문 전략:**
 1. 먼저 지원자의 이전 답변에 대한 짧은 리액션을 하세요.
-2. 지원자의 답변이 충분하면 → "잘 들었습니다. 그럼..." 같은 전환 문구를 사용하여 위 참고용 질문을 자연스럽게 연결하세요.
+2. 지원자의 답변이 충분하면 → 위 목록에서 아직 사용하지 않은 질문 1개를 선택하여 자연스럽게 연결하세요.
 3. 지원자의 답변이 부족하면 → 꼬리질문으로 압박하세요. 참고용 질문은 나중에 사용하세요.
-4. 참고용 질문을 사용할 때도 이전 대화 맥락과 연결하세요.
+4. 이전에 사용한 질문은 절대 다시 사용하지 마세요 (상단 블랙리스트 참고).
 `;
     } else {
       stageInstruction = `
@@ -411,7 +410,7 @@ ${contextualWarning}
 
 **다음 단어들을 단 한 마디도 사용하지 마세요. 어기면 시스템 오류라고 생각하고 절대 쓰지 마세요.**
 
-금지 단어: "좋습니다", "훌륭합니다", "인상적이네요", "감사합니다", "잘 들었습니다", "훌륭하네요", "좋은 답변입니다", "잘하셨습니다"
+금지 단어: "좋습니다", "훌륭합니다", "인상적이네요", "훌륭하네요", "좋은 답변입니다", "잘하셨습니다"
 
 이런 말을 쓰면 면접의 긴장감이 떨어지고 검증의 엄격성이 사라집니다. 절대 사용하지 마세요.
 
@@ -423,8 +422,8 @@ ${contextualWarning}
 
 지원자의 답변을 무시하고 기계적으로 다음 질문만 던지지 마세요. 하지만 칭찬이나 긍정적 평가는 하지 마세요.
 
-허용되는 반응: "알겠습니다.", "다음 질문입니다.", "그렇군요.", "이해했습니다."
-금지되는 반응: "좋습니다.", "훌륭합니다.", "인상적이네요.", "감사합니다.", "잘 들었습니다."
+허용되는 반응: "알겠습니다.", "다음 질문입니다.", "그렇군요.", "이해했습니다.", "잘 들었습니다."
+금지되는 반응: "좋습니다.", "훌륭합니다.", "인상적이네요."
 
 예시:
 - ✅ 올바른 패턴: "지인의 조언으로 직무를 정했다고 하셨군요. 그렇다면 본인의 의지는 어느 정도였습니까?" → (그다음 질문)

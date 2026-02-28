@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
     // OpenAI Chat API 호출
     logger.debug('[Chat API] OpenAI API 호출 시작, 메시지 수:', conversationMessages.length);
 
-    const baseTemperature = config?.temperature ?? 0.9;
+    const baseTemperature = config?.temperature ?? 0.6;
     const maxTokens = config?.maxTokens ?? 500;
 
     // Phase 1: 중복 검증 + 재시도 루프
