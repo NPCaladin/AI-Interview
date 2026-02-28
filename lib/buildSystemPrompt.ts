@@ -72,6 +72,33 @@ function isContextualQuestion(
   return null;
 }
 
+/**
+ * 세션별 결정론적 시드 생성 (첫 사용자 답변 기반)
+ */
+function getSessionSeed(messages?: Array<{ role: string; content: string }>): number {
+  const firstUserMsg = messages?.find(m => m.role === 'user')?.content || '';
+  let hash = 0;
+  for (let i = 0; i < firstUserMsg.length; i++) {
+    hash = ((hash << 5) - hash) + firstUserMsg.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * 시드 기반 결정론적 셔플 (Fisher-Yates)
+ */
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const shuffled = [...arr];
+  let s = seed;
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) & 0x7fffffff;
+    const j = s % (i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 export function buildSystemPrompt(
   interviewData: InterviewData,
   selectedJob: string,
@@ -149,11 +176,41 @@ ${sanitizedResume}
   // question_count에 따른 stage_instruction 생성
   let stageInstruction = '';
 
+  // Q0~Q4 변형 질문 (세션별 시드로 선택)
+  const introVariants = [
+    '반갑습니다. 긴장하지 마시고 편안하게 1분 자기소개 부탁드립니다.',
+    '안녕하세요. 편하게 1분 정도 자기소개를 해주시겠습니까?',
+    '반갑습니다. 먼저 간단하게 본인 소개를 해주시죠.',
+  ];
+  const motivationVariants = [
+    '게임업계를 희망하는 동기와 우리 회사에 지원한 이유에 대해 말씀해주세요.',
+    '왜 게임 산업에서 일하고 싶으신지, 그리고 우리 회사를 선택한 이유가 무엇인지 말씀해주세요.',
+    '게임업계에 관심을 갖게 된 계기와 저희 회사에 지원한 동기를 말씀해주세요.',
+  ];
+  const jobChoiceVariants = [
+    '게임회사 직군이 참 다양하고 많은데 많은 직군 중 왜 이 직무를 선택했습니까?',
+    '게임회사에는 다양한 직군이 있는데, 그중에서 이 직무를 선택하게 된 이유가 궁금합니다.',
+    '여러 직군 중에 하필 이 직무를 택한 특별한 이유가 있습니까?',
+  ];
+  const competencyVariants = [
+    '그럼 그 직무의 핵심 역량은 무엇이라 생각합니까?',
+    '본인이 생각하는 이 직무에서 가장 중요한 역량은 무엇입니까?',
+    '이 직무를 잘 수행하려면 어떤 역량이 가장 중요하다고 보십니까?',
+  ];
+  const preparationVariants = [
+    '그 역량을 갖추기 위해 어떤 구체적인 준비를 했습니까?',
+    '그 역량을 기르기 위해 본인이 실제로 한 노력을 구체적으로 말씀해주세요.',
+    '그렇다면 그 역량을 위해 어떤 준비를 해오셨는지 구체적으로 설명해주세요.',
+  ];
+
+  const seed = getSessionSeed(messages);
+  const pickVariant = (variants: string[]) => variants[seed % variants.length];
+
   if (questionCount === 0) {
     stageInstruction = `
 ## [시나리오 통제] 지금은 0번째 질문입니다. 반드시 다음만 하세요:
 
-"반갑습니다. 긴장하지 마시고 편안하게 1분 자기소개 부탁드립니다."
+"${pickVariant(introVariants)}"
 
 ⚠️ 오직 자기소개 요청만 하세요. 다른 말은 하지 마세요.
 `;
@@ -161,7 +218,7 @@ ${sanitizedResume}
     stageInstruction = `
 ## [시나리오 통제] 지금은 1번째 질문입니다. 반드시 다음 질문만 하세요:
 
-"게임업계를 희망하는 동기와 우리 회사에 지원한 이유에 대해 말씀해주세요  "
+"${pickVariant(motivationVariants)}"
 
 ⚠️ 절대 다른 질문을 하지 마세요. 위 질문만 정확히 하세요.
 `;
@@ -169,7 +226,7 @@ ${sanitizedResume}
     stageInstruction = `
 ## [시나리오 통제] 지금은 2번째 질문입니다. 반드시 다음 질문만 하세요:
 
-"게임회사 직군이 참 다양하고 많은데 많은 직군 중 왜 이 직무를 선택했습니까?"
+"${pickVariant(jobChoiceVariants)}"
 
 ⚠️ 절대 다른 질문을 하지 마세요. 위 질문만 정확히 하세요.
 `;
@@ -177,7 +234,7 @@ ${sanitizedResume}
     stageInstruction = `
 ## [시나리오 통제] 지금은 3번째 질문입니다. 반드시 다음 질문만 하세요:
 
-"그럼 그 직무의 핵심 역량은 무엇이라 생각합니까?"
+"${pickVariant(competencyVariants)}"
 
 ⚠️ 절대 다른 질문을 하지 마세요. 위 질문만 정확히 하세요.
 `;
@@ -185,7 +242,7 @@ ${sanitizedResume}
     stageInstruction = `
 ## [시나리오 통제] 지금은 4번째 질문입니다. 반드시 다음 질문만 하세요:
 
-"그 역량을 갖추기 위해 어떤 구체적인 준비를 했습니까?"
+"${pickVariant(preparationVariants)}"
 
 ⚠️ 절대 다른 질문을 하지 마세요. 위 질문만 정확히 하세요.
 `;
@@ -221,9 +278,11 @@ ${sanitizedResume}
       );
 
       if (questionsPool.length > 0) {
+        const seed = getSessionSeed(messages);
+        const shuffledPool = seededShuffle(questionsPool, seed);
         const questionIndex = questionCount - 5;
         const selectedQuestion =
-          questionsPool[questionIndex % questionsPool.length];
+          shuffledPool[questionIndex % shuffledPool.length];
 
         const detected = isContextualQuestion(selectedQuestion);
         const contextualWarning = detected
@@ -270,12 +329,18 @@ ${contextualWarning}
     const personalityQuestions: string[] = [
       ...(commonQuestionsData.조직적합도 || []),
       ...(commonQuestionsData.직무로열티 || []),
+      ...(commonQuestionsData.문제해결 || []),
+      ...(commonQuestionsData.자기관리 || []),
+      ...(commonQuestionsData.가치관 || []),
+      ...(commonQuestionsData.상황대처 || []),
     ];
 
     if (personalityQuestions.length > 0) {
+      const seed = getSessionSeed(messages);
+      const shuffledPersonality = seededShuffle(personalityQuestions, seed + 7); // 다른 시드로 직무 질문과 독립적으로 셔플
       const questionIndex = questionCount - 9;
       const selectedQuestion =
-        personalityQuestions[questionIndex % personalityQuestions.length];
+        shuffledPersonality[questionIndex % shuffledPersonality.length];
 
       const detected = isContextualQuestion(selectedQuestion);
       const contextualWarning = detected

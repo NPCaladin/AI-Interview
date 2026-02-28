@@ -25,6 +25,10 @@ export interface InterviewData {
   공통_인성_질문?: {
     조직적합도?: string[];
     직무로열티?: string[];
+    문제해결?: string[];
+    자기관리?: string[];
+    가치관?: string[];
+    상황대처?: string[];
   };
 }
 
