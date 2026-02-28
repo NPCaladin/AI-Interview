@@ -76,12 +76,10 @@ export interface StarAnalysisDetail {
 export interface EvaluationDetail {
   strengths: string[];
   weaknesses: string[];
-  score_justification: string;
 }
 
 export interface ImprovementDetail {
   specific_tips: string[];
-  model_answer_outline: string;
   model_answer_example: string;
 }
 
@@ -90,7 +88,6 @@ export interface PremiumFeedbackItem {
   question: string;
   question_type?: '경험형' | '상황형';
   answer_summary: string;
-  answer_full: string;
   score: number;
 
   // STAR 분석 (경험형 질문)
@@ -121,9 +118,6 @@ export interface BestWorstAnalysis {
   answer: string;
   score: number;
   why_best?: string[];
-  why_worst?: string[];
-  key_lesson?: string;
-  how_to_fix?: string;
   rewrite_example?: string;
 }
 

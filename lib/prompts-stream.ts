@@ -106,8 +106,7 @@ ${selectedCompany ? `## 지원 회사: ${selectedCompany}` : ''}
       "좋은 이유 1 (2-3문장)",
       "좋은 이유 2 (2-3문장)",
       "좋은 이유 3 (2-3문장)"
-    ],
-    "key_lesson": "이 수준을 다른 답변에도 적용하기 위한 핵심 교훈 (3문장)"
+    ]
   },
 
   "worst_answer_analysis": {
@@ -115,12 +114,6 @@ ${selectedCompany ? `## 지원 회사: ${selectedCompany}` : ''}
     "question": "질문 전문",
     "answer": "답변 전문",
     "score": number,
-    "why_worst": [
-      "문제점 1 (2-3문장)",
-      "문제점 2 (2-3문장)",
-      "문제점 3 (2-3문장)"
-    ],
-    "how_to_fix": "구체적 개선 가이드 (4-5문장)",
     "rewrite_example": "모범 답안 예시 (6-8문장의 완전한 답변)"
   }
 }
@@ -180,7 +173,6 @@ Q1~Q5는 star_analysis의 각 항목을 해당 없으면 "해당 없음 (자기�
       "question": "면접관의 질문 전문",
       "question_type": "경험형" | "상황형",
       "answer_summary": "답변의 핵심 포인트 요약 (100-150자)",
-      "answer_full": "답변 전문 (원문 그대로)",
       "score": number,
 
       "star_analysis": {
@@ -214,8 +206,7 @@ Q1~Q5는 star_analysis의 각 항목을 해당 없으면 "해당 없음 (자기�
         "weaknesses": [
           "약점 1 (2-3문장, 구체적 근거 포함)",
           "약점 2 (2-3문장, 구체적 근거 포함)"
-        ],
-        "score_justification": "이 점수를 부여한 상세 근거 (3-4문장)"
+        ]
       },
 
       "improvement": {
@@ -223,7 +214,6 @@ Q1~Q5는 star_analysis의 각 항목을 해당 없으면 "해당 없음 (자기�
           "개선팁 1: 구체적으로 어떻게 고쳐야 하는지 (3-4문장)",
           "개선팁 2: 구체적으로 어떻게 고쳐야 하는지 (3-4문장)"
         ],
-        "model_answer_outline": "이 질문에 대한 이상적인 답변 구조 (5-6문장)",
         "model_answer_example": "모범 답안 예시 (8-10문장의 완전한 답변)"
       }
     }${questionNumbers.length > 1 ? `,
@@ -235,9 +225,8 @@ Q1~Q5는 star_analysis의 각 항목을 해당 없으면 "해당 없음 (자기�
 1. ⚠️ "detailed_feedback" 배열에 Q${questionNumbers.join(', Q')} 각각에 대한 분석을 모두 포함하세요
 2. 대화 로그의 [Q번호], [A번호] 태그를 정확히 참조하세요
 3. question 필드는 대화 로그에서 해당 Q번호의 면접관 질문을 그대로 복사
-4. answer_full은 해당 A번호의 지원자 답변 원문 그대로 포함
-5. 절대 지어내지 말고, 지원자가 실제로 한 말만 인용하세요
-6. 반드시 유효한 JSON만 반환하세요 (마지막에 쉼표 없이!)
+4. 절대 지어내지 말고, 지원자가 실제로 한 말만 인용하세요
+5. 반드시 유효한 JSON만 반환하세요 (마지막에 쉼표 없이!)
 `;
 
 // ========================================
