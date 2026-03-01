@@ -271,7 +271,9 @@ ${techlessbridge}이 직군은 기술 질문이 없으므로, 기본 질문(자�
       let filteredQuestions: string[];
 
       if (selectedCompany && selectedCompany !== '공통(회사선택X)') {
-        filteredQuestions = filterQuestionsByCompany(allQuestions, selectedCompany);
+        const companyFiltered = filterQuestionsByCompany(allQuestions, selectedCompany);
+        // 회사 필터 후 6개 미만이면 전체 직군 풀로 폴백
+        filteredQuestions = companyFiltered.length >= 6 ? companyFiltered : allQuestions;
       } else {
         filteredQuestions = allQuestions;
       }
