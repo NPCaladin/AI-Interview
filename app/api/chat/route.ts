@@ -124,6 +124,14 @@ export async function POST(request: NextRequest) {
     // 서버에서 직접 로드 (클라이언트 데이터는 fallback)
     const interview_data: InterviewData | undefined = getInterviewData() || clientInterviewData;
 
+    // selected_job 유효성 검사
+    if (!selected_job || typeof selected_job !== 'string' || selected_job.trim() === '') {
+      return NextResponse.json(
+        { error: 'selected_job 필드가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
     // messages 유효성 검사
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
