@@ -1,7 +1,7 @@
 import type { InterviewData } from './types';
 import { 기술질문없는직군, INTERVIEWER_ROLE_RULE, FOLLOWUP_LIMITS, CONTEXTUAL_PATTERNS, CONTEXTUAL_QUESTION_GUARD_RULE } from './constants';
 import { filterQuestionsByCompany, removeCompanyTagFromQuestion } from './utils';
-import { buildUsedQuestionsBlocklist } from './questionDedup';
+import { buildUsedQuestionsBlocklist, isSimilarQuestion } from './questionDedup';
 import { extractConversationState, analyzeAnswerSpecificity } from './conversationState';
 
 /**
@@ -99,6 +99,18 @@ function seededShuffle<T>(arr: T[], seed: number): T[] {
   return shuffled;
 }
 
+/**
+ * 크로스 세션 최근 질문과 유사한 항목을 풀에서 제거
+ * 필터 후 남은 항목이 6개 미만이면 원본 풀 반환 (질문 부족 방지)
+ */
+function filterPoolByRecentlyAsked(pool: string[], recentlyAsked: string[]): string[] {
+  if (!recentlyAsked || recentlyAsked.length === 0) return pool;
+  const filtered = pool.filter(
+    (q) => !recentlyAsked.some((asked) => isSimilarQuestion(q, asked))
+  );
+  return filtered.length >= 6 ? filtered : pool;
+}
+
 export function buildSystemPrompt(
   interviewData: InterviewData,
   selectedJob: string,
@@ -106,7 +118,8 @@ export function buildSystemPrompt(
   questionCount: number,
   resumeText?: string,
   overridePrompt?: string,
-  messages?: Array<{ role: string; content: string }>
+  messages?: Array<{ role: string; content: string }>,
+  recentlyAskedQuestions?: string[]
 ): string {
   const commonCriteria = (interviewData.공통_평가_기준 || [])
     .map((c) => `- ${c}`)
@@ -278,9 +291,10 @@ ${techlessbridge}이 직군은 기술 질문이 없으므로, 기본 질문(자�
         filteredQuestions = allQuestions;
       }
 
-      const questionsPool = filteredQuestions.map((q) =>
+      const rawQuestionsPool = filteredQuestions.map((q) =>
         removeCompanyTagFromQuestion(q)
       );
+      const questionsPool = filterPoolByRecentlyAsked(rawQuestionsPool, recentlyAskedQuestions || []);
 
       if (questionsPool.length > 0) {
         const seed = getSessionSeed(messages);
@@ -329,7 +343,7 @@ ${candidateListStr}
     }
   } else if (questionCount >= 9 && questionCount <= 10) {
     const commonQuestionsData = interviewData.공통_인성_질문 || {};
-    const personalityQuestions: string[] = [
+    const rawPersonalityQuestions: string[] = [
       ...(commonQuestionsData.조직적합도 || []),
       ...(commonQuestionsData.직무로열티 || []),
       ...(commonQuestionsData.문제해결 || []),
@@ -337,6 +351,7 @@ ${candidateListStr}
       ...(commonQuestionsData.가치관 || []),
       ...(commonQuestionsData.상황대처 || []),
     ];
+    const personalityQuestions = filterPoolByRecentlyAsked(rawPersonalityQuestions, recentlyAskedQuestions || []);
 
     if (personalityQuestions.length > 0) {
       const seed = getSessionSeed(messages);

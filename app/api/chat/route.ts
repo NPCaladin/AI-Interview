@@ -8,6 +8,7 @@ import { checkDuplicateQuestion } from '@/lib/questionDedup';
 import { TOTAL_QUESTION_COUNT, MAX_USER_INPUT_LENGTH, CHAT_API_TIMEOUT, MAX_CONTEXT_MESSAGES } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { getRecentlyAskedQuestions, recordSessionQuestion } from '@/lib/crossSessionDedup';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -27,6 +28,7 @@ interface ChatRequest {
   selected_company?: string;
   question_count?: number;
   is_first?: boolean;
+  session_id?: string;
   config?: {
     temperature?: number;
     maxTokens?: number;
@@ -55,6 +57,7 @@ export async function POST(request: NextRequest) {
       selected_company,
       question_count = 0,
       is_first = false,
+      session_id,
       config,
       resume_text,
     } = body;
@@ -62,10 +65,12 @@ export async function POST(request: NextRequest) {
     // question_count 범위 검증
     const safeQuestionCount = Math.max(0, Math.min(question_count, TOTAL_QUESTION_COUNT + 10));
 
+    // studentId: 매 요청에서 추출 (middleware가 인증된 요청에 주입)
+    const studentId = request.headers.get('x-student-id');
+
     // 면접 시작 시 사용량 소진
     let usageRemaining: number | undefined;
     if (is_first) {
-      const studentId = request.headers.get('x-student-id');
       if (!studentId) {
         return NextResponse.json(
           { error: '인증이 필요합니다.' },
@@ -122,7 +127,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 서버에서 직접 로드 (클라이언트 데이터는 fallback)
-    const interview_data: InterviewData | undefined = getInterviewData() || clientInterviewData;
+    const interview_data: InterviewData | undefined = (await getInterviewData()) || clientInterviewData;
 
     // selected_job 유효성 검사
     if (!selected_job || typeof selected_job !== 'string' || selected_job.trim() === '') {
@@ -157,6 +162,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 크로스 세션 중복 방지: Q5-Q10 구간에서 최근 질문 조회
+    let recentlyAskedQuestions: string[] = [];
+    if (
+      studentId &&
+      session_id &&
+      selected_job &&
+      safeQuestionCount >= 5 &&
+      safeQuestionCount <= 10
+    ) {
+      recentlyAskedQuestions = await getRecentlyAskedQuestions(studentId, selected_job);
+      if (recentlyAskedQuestions.length > 0) {
+        logger.debug(`[Chat API] 크로스 세션 중복 방지: 최근 ${recentlyAskedQuestions.length}개 질문 로드`);
+      }
+    }
+
     // 시스템 프롬프트 생성 (Phase 1, 2, 3: 전체 messages 전달)
     let systemPrompt: string;
 
@@ -170,7 +190,8 @@ export async function POST(request: NextRequest) {
           safeQuestionCount,
           resume_text,
           config?.systemPrompt,
-          messages // Phase 1, 2, 3: 전체 메시지 전달 (블랙리스트, 꼬리질문 결정에 사용)
+          messages, // Phase 1, 2, 3: 전체 메시지 전달 (블랙리스트, 꼬리질문 결정에 사용)
+          recentlyAskedQuestions.length > 0 ? recentlyAskedQuestions : undefined
         );
       } else {
         logger.debug('[Chat API] 기본 시스템 프롬프트 사용');
@@ -305,6 +326,19 @@ export async function POST(request: NextRequest) {
     }
 
     logger.debug('[Chat API] AI 답변 생성 완료, 길이:', assistantMessage.length);
+
+    // 크로스 세션 중복 방지: Q5-Q10 질문 기록 (fire-and-forget)
+    if (studentId && session_id && selected_job && safeQuestionCount >= 5 && safeQuestionCount <= 10) {
+      const qType = safeQuestionCount <= 8 ? 'job' : 'personality';
+      recordSessionQuestion(
+        studentId,
+        session_id,
+        selected_job,
+        assistantMessage,
+        qType as 'job' | 'personality',
+        safeQuestionCount
+      ).catch(() => {});
+    }
 
     const latency = Date.now() - startTime;
     logger.debug('[Chat API] 총 응답 시간:', latency, 'ms');
