@@ -35,6 +35,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [logsRefreshKey, setLogsRefreshKey] = useState(0);
 
   const fetchData = useCallback(async () => {
     try {
@@ -75,6 +76,7 @@ export default function AdminDashboard() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await fetchData();
+    setLogsRefreshKey((k) => k + 1);
     setIsRefreshing(false);
   };
 
@@ -138,7 +140,7 @@ export default function AdminDashboard() {
             <UsageChart />
           </div>
           <div>
-            <RecentLogs />
+            <RecentLogs refreshKey={logsRefreshKey} />
           </div>
         </div>
 

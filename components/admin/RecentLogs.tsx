@@ -10,7 +10,7 @@ interface LogEntry {
   created_at: string;
 }
 
-export default function RecentLogs() {
+export default function RecentLogs({ refreshKey = 0 }: { refreshKey?: number }) {
   const { authHeaders } = useAdminAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,7 +33,7 @@ export default function RecentLogs() {
 
   useEffect(() => {
     fetchLogs();
-  }, [fetchLogs]);
+  }, [fetchLogs, refreshKey]);
 
   const formatDateTime = (iso: string) => {
     const kst = new Date(new Date(iso).toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
