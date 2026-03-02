@@ -6,20 +6,37 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
+    // JOIN 대신 2-step 쿼리 (Supabase JOIN이 일부 행을 누락시키는 버그 회피)
+    const { data: logsData, error: logsError } = await supabase
       .from('usage_logs')
-      .select('id, created_at, students!student_id(code)')
+      .select('id, created_at, student_id')
       .order('created_at', { ascending: false })
-      .limit(30);
+      .limit(50);
 
-    if (error) {
-      logger.error('[Admin Logs] Query error:', error);
+    if (logsError) {
+      logger.error('[Admin Logs] Query error:', logsError);
       return NextResponse.json({ error: '로그 조회 실패' }, { status: 500 });
     }
 
-    const logs = (data || []).map((log: Record<string, unknown>) => ({
+    if (!logsData || logsData.length === 0) {
+      return NextResponse.json({ logs: [] });
+    }
+
+    // 고유 student_id로 code 조회
+    const studentIds = Array.from(new Set(logsData.map((l) => l.student_id)));
+    const { data: studentsData } = await supabase
+      .from('students')
+      .select('id, code')
+      .in('id', studentIds);
+
+    const codeMap: Record<string, string> = {};
+    for (const s of studentsData || []) {
+      codeMap[s.id] = s.code;
+    }
+
+    const logs = logsData.map((log) => ({
       id: log.id as string,
-      code: (Array.isArray(log.students) ? (log.students as { code: string }[])[0]?.code : (log.students as { code: string } | null)?.code) ?? '알 수 없음',
+      code: codeMap[log.student_id as string] ?? '알 수 없음',
       created_at: log.created_at as string,
     }));
 
