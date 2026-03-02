@@ -252,7 +252,7 @@ export default function HowToUsePage() {
                   </div>
                   <div className="p-3 rounded-lg bg-white/[0.03] border border-white/5">
                     <p className="text-xs font-semibold text-white mb-1">개발직군</p>
-                    <p className="text-xs text-gray-500 font-sans">프로그래머 · 엔지니어 · UI/UX · 애니메이션 · 사운드</p>
+                    <p className="text-xs text-gray-500 font-sans">서버 프로그래머 · 클라이언트 프로그래머 · 엔지니어 · UI/UX · 애니메이션 · 사운드</p>
                   </div>
                 </div>
               </div>
