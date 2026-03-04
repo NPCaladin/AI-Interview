@@ -40,7 +40,9 @@ export async function GET() {
       created_at: log.created_at as string,
     }));
 
-    return NextResponse.json({ logs });
+    return NextResponse.json({ logs }, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   } catch (error) {
     logger.error('[Admin Logs] Error:', error);
     return NextResponse.json({ error: '서버 오류' }, { status: 500 });

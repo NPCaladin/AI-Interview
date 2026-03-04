@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
-import { Clock, Loader2, RefreshCw } from 'lucide-react';
+import { Clock, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -11,25 +11,37 @@ interface LogEntry {
 }
 
 export default function RecentLogs({ refreshKey = 0 }: { refreshKey?: number }) {
-  const { authHeaders } = useAdminAuth();
+  const { authHeaders, logout } = useAdminAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState('');
 
   const fetchLogs = useCallback(async (showRefresh = false) => {
     if (showRefresh) setIsRefreshing(true);
     else setIsLoading(true);
+    setFetchError('');
     try {
-      const res = await fetch('/api/admin/logs', { headers: authHeaders() });
+      const res = await fetch('/api/admin/logs', {
+        headers: { ...authHeaders(), 'Cache-Control': 'no-cache' },
+      });
+      if (res.status === 401) {
+        logout();
+        return;
+      }
+      if (!res.ok) {
+        setFetchError(`서버 오류 (${res.status})`);
+        return;
+      }
       const json = await res.json();
       setLogs(json.logs || []);
     } catch {
-      // ignore
+      setFetchError('네트워크 오류');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [authHeaders]);
+  }, [authHeaders, logout]);
 
   useEffect(() => {
     fetchLogs();
@@ -78,6 +90,17 @@ export default function RecentLogs({ refreshKey = 0 }: { refreshKey?: number }) 
       {isLoading ? (
         <div className="flex items-center justify-center h-40">
           <Loader2 className="w-5 h-5 text-[#8b5cf6] animate-spin" />
+        </div>
+      ) : fetchError ? (
+        <div className="flex flex-col items-center justify-center h-40 gap-2 text-red-400">
+          <AlertTriangle className="w-5 h-5" />
+          <span className="text-xs">{fetchError}</span>
+          <button
+            onClick={() => fetchLogs(true)}
+            className="text-xs text-gray-400 hover:text-white underline mt-1"
+          >
+            다시 시도
+          </button>
         </div>
       ) : logs.length === 0 ? (
         <div className="flex items-center justify-center h-40 text-gray-500 text-sm">
