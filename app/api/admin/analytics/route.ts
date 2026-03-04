@@ -55,7 +55,9 @@ export async function GET(request: NextRequest) {
       uniqueUsers: users.size,
     }));
 
-    return NextResponse.json({ daily, days });
+    return NextResponse.json({ daily, days }, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   } catch (error) {
     logger.error('[Admin Analytics] Error:', error);
     return NextResponse.json({ error: '서버 오류' }, { status: 500 });

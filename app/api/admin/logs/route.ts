@@ -14,9 +14,11 @@ export async function GET() {
       .limit(50);
 
     if (logsError) {
-      logger.error('[Admin Logs] Query error:', logsError);
-      return NextResponse.json({ error: '로그 조회 실패' }, { status: 500 });
+      logger.error('[Admin Logs] Query error:', logsError.message, logsError.code, logsError.details);
+      return NextResponse.json({ error: `로그 조회 실패: ${logsError.message}` }, { status: 500 });
     }
+
+    logger.info('[Admin Logs] 조회 결과:', logsData?.length ?? 0, '건');
 
     if (!logsData || logsData.length === 0) {
       return NextResponse.json({ logs: [] });

@@ -30,7 +30,8 @@ export default function RecentLogs({ refreshKey = 0 }: { refreshKey?: number }) 
         return;
       }
       if (!res.ok) {
-        setFetchError(`서버 오류 (${res.status})`);
+        const errJson = await res.json().catch(() => ({}));
+        setFetchError(errJson.error || `서버 오류 (${res.status})`);
         return;
       }
       const json = await res.json();
