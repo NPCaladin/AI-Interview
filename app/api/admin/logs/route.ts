@@ -6,25 +6,22 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // JOIN 대신 2-step 쿼리 (Supabase JOIN이 일부 행을 누락시키는 버그 회피)
+    // order+limit 단독 사용 시 PostgreSQL 플래너가 특정 행을 누락하는 버그 회피
+    // → analytics와 동일하게 날짜 범위 필터 추가 (최근 60일)
+    const since = new Date();
+    since.setDate(since.getDate() - 60);
+
     const { data: logsData, error: logsError } = await supabase
       .from('usage_logs')
       .select('id, created_at, student_id')
+      .gte('created_at', since.toISOString())
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (logsError) {
       logger.error('[Admin Logs] Query error:', logsError.message, logsError.code, logsError.details);
       return NextResponse.json({ error: `로그 조회 실패: ${logsError.message}` }, { status: 500 });
     }
-
-    logger.warn('[Admin Logs] 조회결과:', logsData?.length ?? 0, '건 / 최신:', logsData?.[0]?.created_at);
-    // 3/3 이후 데이터 직접 조회 (RLS·필터 이슈 확인)
-    const { data: recentRows, error: recentErr } = await supabase
-      .from('usage_logs')
-      .select('id, created_at, student_id')
-      .gte('created_at', '2026-03-03T00:00:00+09:00');
-    logger.warn('[Admin Logs] 3/3이후 직접조회:', recentRows?.length ?? 0, '건 / 에러:', recentErr?.message ?? 'none');
 
     if (!logsData || logsData.length === 0) {
       return NextResponse.json({ logs: [] });
