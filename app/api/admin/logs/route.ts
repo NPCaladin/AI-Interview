@@ -22,7 +22,12 @@ export async function GET() {
     const { count } = await supabase
       .from('usage_logs')
       .select('*', { count: 'exact', head: true });
-    logger.warn('[Admin Logs] 전체 행 수:', count, '/ 조회 결과:', logsData?.length ?? 0, '건');
+    // 3/3 이후 행 수 확인
+    const { count: recentCount } = await supabase
+      .from('usage_logs')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', '2026-03-03T00:00:00+09:00');
+    logger.warn('[Admin Logs] 전체:', count, '건 / 조회결과:', logsData?.length ?? 0, '건 / 3/3이후:', recentCount, '건');
     if (logsData && logsData.length > 0) {
       logger.warn('[Admin Logs] 최신:', logsData[0].created_at, '/ 최오래:', logsData[logsData.length - 1].created_at);
     }
