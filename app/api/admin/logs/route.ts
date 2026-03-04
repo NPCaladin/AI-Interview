@@ -18,7 +18,7 @@ export async function GET() {
       return NextResponse.json({ error: `로그 조회 실패: ${logsError.message}` }, { status: 500 });
     }
 
-    logger.info('[Admin Logs] 조회 결과:', logsData?.length ?? 0, '건');
+    logger.warn('[Admin Logs] 조회 결과:', logsData?.length ?? 0, '건');
 
     if (!logsData || logsData.length === 0) {
       return NextResponse.json({ logs: [] });
