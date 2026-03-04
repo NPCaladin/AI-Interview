@@ -18,19 +18,13 @@ export async function GET() {
       return NextResponse.json({ error: `로그 조회 실패: ${logsError.message}` }, { status: 500 });
     }
 
-    // 전체 행 수 확인
-    const { count } = await supabase
+    logger.warn('[Admin Logs] 조회결과:', logsData?.length ?? 0, '건 / 최신:', logsData?.[0]?.created_at);
+    // 3/3 이후 데이터 직접 조회 (RLS·필터 이슈 확인)
+    const { data: recentRows, error: recentErr } = await supabase
       .from('usage_logs')
-      .select('*', { count: 'exact', head: true });
-    // 3/3 이후 행 수 확인
-    const { count: recentCount } = await supabase
-      .from('usage_logs')
-      .select('*', { count: 'exact', head: true })
+      .select('id, created_at, student_id')
       .gte('created_at', '2026-03-03T00:00:00+09:00');
-    logger.warn('[Admin Logs] 전체:', count, '건 / 조회결과:', logsData?.length ?? 0, '건 / 3/3이후:', recentCount, '건');
-    if (logsData && logsData.length > 0) {
-      logger.warn('[Admin Logs] 최신:', logsData[0].created_at, '/ 최오래:', logsData[logsData.length - 1].created_at);
-    }
+    logger.warn('[Admin Logs] 3/3이후 직접조회:', recentRows?.length ?? 0, '건 / 에러:', recentErr?.message ?? 'none');
 
     if (!logsData || logsData.length === 0) {
       return NextResponse.json({ logs: [] });
