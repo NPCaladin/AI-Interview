@@ -18,7 +18,14 @@ export async function GET() {
       return NextResponse.json({ error: `로그 조회 실패: ${logsError.message}` }, { status: 500 });
     }
 
-    logger.warn('[Admin Logs] 조회 결과:', logsData?.length ?? 0, '건');
+    // 전체 행 수 확인
+    const { count } = await supabase
+      .from('usage_logs')
+      .select('*', { count: 'exact', head: true });
+    logger.warn('[Admin Logs] 전체 행 수:', count, '/ 조회 결과:', logsData?.length ?? 0, '건');
+    if (logsData && logsData.length > 0) {
+      logger.warn('[Admin Logs] 최신:', logsData[0].created_at, '/ 최오래:', logsData[logsData.length - 1].created_at);
+    }
 
     if (!logsData || logsData.length === 0) {
       return NextResponse.json({ logs: [] });
