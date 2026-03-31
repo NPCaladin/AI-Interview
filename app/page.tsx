@@ -21,7 +21,7 @@ import TimeoutModal from '@/components/TimeoutModal';
 export default function Home() {
   const { isDevMode } = useDevMode();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [sttModel, setSttModel] = useState<'OpenAI Whisper' | 'Daglo'>('Daglo');
+  const [sttModel, setSttModel] = useState<'OpenAI Whisper' | 'Daglo'>('OpenAI Whisper');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const {
