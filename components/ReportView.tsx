@@ -3,10 +3,25 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
-import { Download, Trophy, Target, Zap, TrendingUp, MessageSquare, ChevronUp, FileText, RefreshCw, CheckCircle2, AlertTriangle, Star } from 'lucide-react';
+import { Download, Trophy, Target, Zap, TrendingUp, MessageSquare, ChevronUp, FileText, RefreshCw, CheckCircle2, AlertTriangle, Star, Loader2 } from 'lucide-react';
 import type { GameInterviewReport, StreamingReportState, PremiumFeedbackItem } from '@/lib/types';
 import { SCORE_LABELS } from '@/lib/constants';
 import { toast } from 'sonner';
+
+// ========================================
+// 경과 시간 타이머
+// ========================================
+
+function ElapsedTimer({ startTime }: { startTime: number }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [startTime]);
+  const min = Math.floor(elapsed / 60);
+  const sec = elapsed % 60;
+  return <>{min > 0 ? `${min}분 ${sec}초` : `${sec}초`} 경과</>;
+}
 
 // ========================================
 // 스트리밍 진행 배너
@@ -15,9 +30,13 @@ import { toast } from 'sonner';
 function StreamingBanner({
   streaming,
   onRetry,
+  onCancel,
+  startTime,
 }: {
   streaming: StreamingReportState;
   onRetry?: () => void;
+  onCancel?: () => void;
+  startTime?: number;
 }) {
   // 에러 상태 확인
   if (streaming.error) {
@@ -67,6 +86,9 @@ function StreamingBanner({
         </div>
         <div className="text-right">
           <span className="text-2xl font-bold text-cyber-400">{Math.round(streaming.progress)}%</span>
+          {startTime && startTime > 0 && (
+            <p className="text-xs text-gray-500 mt-0.5"><ElapsedTimer startTime={startTime} /></p>
+          )}
         </div>
       </div>
 
@@ -95,6 +117,17 @@ function StreamingBanner({
           );
         })}
       </div>
+
+      {onCancel && (
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-xs text-gray-400 border border-gray-600 rounded-lg hover:bg-gray-700/50 hover:text-gray-300 transition-colors"
+          >
+            분석 취소
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -279,7 +312,9 @@ interface ReportViewProps {
   selectedCompany: string;
   onDownload?: () => void;
   onRetryAnalysis?: () => void;
+  onCancelAnalysis?: () => void;
   streaming?: StreamingReportState;
+  analysisStartTime?: number;
 }
 
 export default function ReportView({
@@ -289,7 +324,9 @@ export default function ReportView({
   selectedCompany,
   onDownload,
   onRetryAnalysis,
+  onCancelAnalysis,
   streaming,
+  analysisStartTime,
 }: ReportViewProps) {
   const reportRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -486,7 +523,7 @@ export default function ReportView({
   return (
     <div className="h-full overflow-y-auto bg-gradient-to-b from-dark-800 to-dark-900 p-3 md:p-6 scrollbar-gaming">
       {/* 스트리밍 배너 */}
-      {streaming && <StreamingBanner streaming={streaming} onRetry={onRetryAnalysis} />}
+      {streaming && <StreamingBanner streaming={streaming} onRetry={onRetryAnalysis} onCancel={onCancelAnalysis} startTime={analysisStartTime} />}
 
       <div ref={reportRef}>
         {/* 헤더 */}
@@ -513,7 +550,7 @@ export default function ReportView({
               disabled={isDownloading}
               className="btn-gaming px-3 py-2 md:px-4 rounded-lg flex items-center gap-1.5 md:gap-2 text-xs md:text-sm disabled:opacity-50"
             >
-              <Download className="w-4 h-4" />
+              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {isDownloading ? '생성중...' : 'PDF'}
             </button>
           </div>

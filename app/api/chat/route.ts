@@ -127,7 +127,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 서버에서 직접 로드 (클라이언트 데이터는 fallback)
-    const interview_data: InterviewData | undefined = (await getInterviewData()) || clientInterviewData;
+    let serverInterviewData: InterviewData | undefined;
+    try {
+      serverInterviewData = (await getInterviewData()) ?? undefined;
+    } catch (loadErr) {
+      logger.warn('[Chat API] 서버 면접 데이터 로드 실패, 클라이언트 데이터 폴백:', loadErr instanceof Error ? loadErr.message : loadErr);
+    }
+    const interview_data: InterviewData | undefined = serverInterviewData || clientInterviewData;
 
     // selected_job 유효성 검사
     if (!selected_job || typeof selected_job !== 'string' || selected_job.trim() === '') {
@@ -337,7 +343,7 @@ export async function POST(request: NextRequest) {
         assistantMessage,
         qType as 'job' | 'personality',
         safeQuestionCount
-      ).catch(() => {});
+      ).catch((err) => { logger.error('[Chat API] 세션 질문 기록 실패:', err instanceof Error ? err.message : err); });
     }
 
     const latency = Date.now() - startTime;

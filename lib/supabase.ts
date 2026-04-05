@@ -9,7 +9,11 @@ function getSupabase(): SupabaseClient {
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
+    const missing = [
+      !supabaseUrl && 'SUPABASE_URL',
+      !supabaseServiceRoleKey && 'SUPABASE_SERVICE_ROLE_KEY',
+    ].filter(Boolean).join(', ');
+    throw new Error(`Supabase 초기화 실패: 환경변수 누락 — ${missing}. .env.local 파일을 확인하세요.`);
   }
 
   _supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {

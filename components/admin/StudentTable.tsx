@@ -23,6 +23,20 @@ interface StudentTableProps {
 
 type Filter = 'all' | 'active' | 'inactive';
 
+function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-sm rounded-2xl border border-red-500/40 bg-[#12121a] p-6 shadow-2xl">
+        <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-line mb-6">{message}</p>
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm text-gray-300 border border-white/20 hover:bg-white/5 transition-colors">취소</button>
+          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors">확인</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function StudentTable({ students, onRefresh }: StudentTableProps) {
   const { authHeaders } = useAdminAuth();
   const [search, setSearch] = useState('');
@@ -31,6 +45,7 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const filtered = students.filter((s) => {
     const matchesSearch =
@@ -64,42 +79,42 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
 
   const handleReset = async (student: Student) => {
     if (resettingId) return;
-    if (!window.confirm(`${student.name}(${student.code})의 이번 주 사용량을 초기화할까요?`)) return;
-    setResettingId(student.id);
-    try {
-      const response = await fetch('/api/admin/students/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ id: student.id }),
-      });
-      if (response.ok) {
-        onRefresh();
-      }
-    } catch {
-      // ignore
-    } finally {
-      setResettingId(null);
-    }
+    setConfirmModal({
+      message: `${student.name}(${student.code})의 이번 주 사용량을 초기화할까요?`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setResettingId(student.id);
+        try {
+          const response = await fetch('/api/admin/students/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ id: student.id }),
+          });
+          if (response.ok) onRefresh();
+        } catch { /* ignore */ } finally { setResettingId(null); }
+      },
+    });
+    return;
   };
 
   const handleDelete = async (student: Student) => {
     if (deletingId) return;
-    if (!window.confirm(`${student.name}(${student.code})을 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
-    setDeletingId(student.id);
-    try {
-      const response = await fetch('/api/admin/students', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ id: student.id }),
-      });
-      if (response.ok) {
-        onRefresh();
-      }
-    } catch {
-      // ignore
-    } finally {
-      setDeletingId(null);
-    }
+    setConfirmModal({
+      message: `${student.name}(${student.code})을 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setDeletingId(student.id);
+        try {
+          const response = await fetch('/api/admin/students', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ id: student.id }),
+          });
+          if (response.ok) onRefresh();
+        } catch { /* ignore */ } finally { setDeletingId(null); }
+      },
+    });
+    return;
   };
 
   const formatDate = (iso: string) => {
@@ -288,6 +303,14 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
           student={editStudent}
           onClose={() => setEditStudent(null)}
           onSuccess={onRefresh}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
         />
       )}
     </>

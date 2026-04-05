@@ -74,11 +74,19 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
     const fileBlob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/wav' });
     formData.append('file', fileBlob, 'audio.wav');
 
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    const dagloAbort = new AbortController();
+    const dagloTimeout = setTimeout(() => dagloAbort.abort(), 30_000);
+    let response;
+    try {
+      response = await fetch(baseUrl, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: dagloAbort.signal,
+      });
+    } finally {
+      clearTimeout(dagloTimeout);
+    }
 
     rawData.step1_request = {
       url: baseUrl,
@@ -133,10 +141,18 @@ async function transcribeWithDaglo(audioBuffer: Buffer): Promise<{ text: string;
         );
       }
 
-      const pollResponse = await fetch(statusUrl, {
-        method: 'GET',
-        headers,
-      });
+      const pollAbort = new AbortController();
+      const pollTimeout = setTimeout(() => pollAbort.abort(), 30_000);
+      let pollResponse;
+      try {
+        pollResponse = await fetch(statusUrl, {
+          method: 'GET',
+          headers,
+          signal: pollAbort.signal,
+        });
+      } finally {
+        clearTimeout(pollTimeout);
+      }
 
       // HTTP 상태 코드 먼저 체크
       if (!pollResponse.ok) {
@@ -254,8 +270,16 @@ export async function POST(request: NextRequest) {
       // JSON base64 전송 (레거시 호환)
       const body: STTRequest = await request.json();
       const { audio, stt_model: model = 'OpenAI Whisper' } = body;
-      if (!audio) {
-        return NextResponse.json({ error: 'audio 필드가 필요합니다.' }, { status: 400 });
+      if (!audio || typeof audio !== 'string') {
+        return NextResponse.json({ error: 'audio 필드가 필요합니다. (string 타입)' }, { status: 400 });
+      }
+      // Base64 디코딩 전 추정 크기 선검사 (DoS 방지)
+      const estimatedSize = Math.ceil(audio.length * 3 / 4);
+      if (estimatedSize > MAX_AUDIO_FILE_SIZE) {
+        return NextResponse.json(
+          { error: `오디오 데이터가 너무 큽니다. 최대 ${MAX_AUDIO_FILE_SIZE / (1024 * 1024)}MB까지 허용됩니다.` },
+          { status: 413 }
+        );
       }
       audioBuffer = Buffer.from(audio, 'base64');
       stt_model = model;
@@ -285,9 +309,12 @@ export async function POST(request: NextRequest) {
       try {
         result = await transcribeWithDaglo(audioBuffer);
       } catch (firstError: any) {
-        const isVoiceUnrecognized = firstError?.message?.includes('음성이 인식되지 않았습니다');
-        if (isVoiceUnrecognized) throw firstError; // 음성 인식 실패는 재시도 불필요
-        logger.warn('[STT API] Daglo 1차 실패, 3초 후 재시도:', firstError?.message);
+        const msg = firstError?.message || '';
+        // 음성 인식 실패 또는 4xx 에러(클라이언트 오류)는 재시도 불필요
+        const isNoRetry = msg.includes('음성이 인식되지 않았습니다')
+          || msg.includes('상태 코드: 4');
+        if (isNoRetry) throw firstError;
+        logger.warn('[STT API] Daglo 1차 실패, 3초 후 재시도:', msg);
         await new Promise(resolve => setTimeout(resolve, 3000));
         result = await transcribeWithDaglo(audioBuffer); // 2차 시도, 실패 시 그대로 throw
       }

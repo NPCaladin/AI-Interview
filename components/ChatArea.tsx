@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
-import { UserCircle, Bot, Play, Terminal, Wifi, Signal, Volume2, Mic } from 'lucide-react';
+import { UserCircle, Bot, Play, Terminal, Wifi, Signal, Volume2, Mic, BarChart2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Message } from '@/lib/types';
 import { TOTAL_QUESTION_COUNT } from '@/lib/constants';
@@ -11,9 +11,11 @@ interface ChatAreaProps {
   isLoading?: boolean;
   isInterviewStarted?: boolean;
   onStartInterview?: () => void;
+  onStartAnalysis?: () => void;
   selectedJob?: string;
   selectedCompany?: string;
   questionCount?: number;
+  isInterviewEnded?: boolean;
 }
 
 // 타이핑 효과 도트 애니메이션
@@ -327,9 +329,11 @@ export default function ChatArea({
   isLoading = false,
   isInterviewStarted = false,
   onStartInterview,
+  onStartAnalysis,
   selectedJob = '',
   selectedCompany = '',
   questionCount = 0,
+  isInterviewEnded = false,
 }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -400,6 +404,19 @@ export default function ChatArea({
 
           {/* 로딩 표시 */}
           {isLoading && <LoadingMessage />}
+
+          {/* 면접 종료 후 인라인 분석 버튼 (모바일에서 사이드바 없이 접근 가능) */}
+          {isInterviewEnded && !isLoading && onStartAnalysis && (
+            <div className="flex justify-center py-4">
+              <button
+                onClick={onStartAnalysis}
+                className="px-6 py-3 bg-gradient-to-r from-[#00F2FF] to-[#7B2FFF] text-white font-bold rounded-xl shadow-glow hover:opacity-90 active:scale-95 transition-all flex items-center gap-2"
+              >
+                <BarChart2 className="w-5 h-5" />
+                AI 분석 시작
+              </button>
+            </div>
+          )}
 
           {/* 하단 여백 */}
           <div className="h-4" />

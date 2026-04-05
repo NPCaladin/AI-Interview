@@ -166,6 +166,8 @@ export function buildSystemPrompt(
         .replace(/\[/g, '［')   // 대괄호 → 전각 (시스템 마크업 위장 방지)
         .replace(/\]/g, '］')
         .replace(/#/g, '＃')    // 마크다운 헤딩 위장 방지
+        .replace(/`/g, '｀')    // 백틱 → 전각 (코드 블록 위장 방지)
+        .replace(/<\/?[a-zA-Z_][\w-]*[^>]*>/g, (m) => m.replace(/</g, '＜').replace(/>/g, '＞')) // XML 태그 중화
         .replace(/^(SYSTEM|ASSISTANT|USER|HUMAN|AI)\s*:/gim, '[$1]:') // 역할 위장 방지
     : undefined;
 

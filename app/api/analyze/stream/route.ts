@@ -19,8 +19,12 @@ interface AnalyzeStreamRequest {
 
 // SSE 이벤트 전송 헬퍼
 function sendSSE(controller: ReadableStreamDefaultController, type: SSEEventType, data: unknown, progress?: number) {
-  const event = JSON.stringify({ type, data, progress });
-  controller.enqueue(new TextEncoder().encode(`data: ${event}\n\n`));
+  try {
+    const event = JSON.stringify({ type, data, progress });
+    controller.enqueue(new TextEncoder().encode(`data: ${event}\n\n`));
+  } catch (err) {
+    logger.error('[SSE] 이벤트 전송 실패:', err instanceof Error ? err.message : err);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -101,16 +105,23 @@ ${taggedConversation}
 
           let summaryResult = null;
           try {
-            const summaryResponse = await openai.chat.completions.create({
-              model: 'gpt-4o',
-              messages: [
-                { role: 'system', content: summaryPrompt },
-                { role: 'user', content: summaryUserPrompt },
-              ],
-              temperature: 0.3,
-              max_tokens: 8000,
-              response_format: { type: 'json_object' },
-            });
+            const summaryAbort = new AbortController();
+            const summaryTimeout = setTimeout(() => summaryAbort.abort(), 60_000);
+            let summaryResponse;
+            try {
+              summaryResponse = await openai.chat.completions.create({
+                model: 'gpt-4o',
+                messages: [
+                  { role: 'system', content: summaryPrompt },
+                  { role: 'user', content: summaryUserPrompt },
+                ],
+                temperature: 0.3,
+                max_tokens: 8000,
+                response_format: { type: 'json_object' },
+              }, { signal: summaryAbort.signal });
+            } finally {
+              clearTimeout(summaryTimeout);
+            }
 
             const finishReason = summaryResponse.choices[0].finish_reason;
             if (finishReason === 'length') {
@@ -168,16 +179,23 @@ ${taggedConversation}
 
             while (retryCount <= maxRetries) {
               try {
-                const detailResponse = await openai.chat.completions.create({
-                  model: 'gpt-4o',
-                  messages: [
-                    { role: 'system', content: detailPrompt },
-                    { role: 'user', content: detailUserPrompt },
-                  ],
-                  temperature: 0.3,
-                  max_tokens: 8000,
-                  response_format: { type: 'json_object' },
-                });
+                const chunkAbort = new AbortController();
+                const chunkTimeout = setTimeout(() => chunkAbort.abort(), 60_000);
+                let detailResponse;
+                try {
+                  detailResponse = await openai.chat.completions.create({
+                    model: 'gpt-4o',
+                    messages: [
+                      { role: 'system', content: detailPrompt },
+                      { role: 'user', content: detailUserPrompt },
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 8000,
+                    response_format: { type: 'json_object' },
+                  }, { signal: chunkAbort.signal });
+                } finally {
+                  clearTimeout(chunkTimeout);
+                }
 
                 if (detailResponse.choices[0].finish_reason === 'length') {
                   logger.warn(`[분석] 청크 ${chunkIndex} 토큰 한도 도달 — 응답이 잘렸을 수 있음`);
@@ -226,6 +244,9 @@ ${taggedConversation}
           // 결과 수집
           chunkResults.forEach((result, chunkIndex) => {
             const questionNumbers = questionChunks[chunkIndex];
+            if (result.status === 'rejected') {
+              logger.error(`[분석] 청크 ${chunkIndex} 실패:`, result.reason);
+            }
             const feedback = result.status === 'fulfilled' ? result.value : [];
 
             if (feedback.length > 0) {

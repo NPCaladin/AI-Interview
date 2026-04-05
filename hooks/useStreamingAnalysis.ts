@@ -27,6 +27,7 @@ export function useStreamingAnalysis({
   const [interviewReport, setInterviewReport] = useState<GameInterviewReport | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const analysisAbortRef = useRef<AbortController | null>(null);
+  const startTimeRef = useRef<number>(0);
   const [streamingState, setStreamingState] = useState<StreamingReportState>({
     isStreaming: false,
     progress: 0,
@@ -43,6 +44,7 @@ export function useStreamingAnalysis({
     if (analysisAbortRef.current) return;
 
     setIsAnalyzing(true);
+    startTimeRef.current = Date.now();
     setStreamingState({
       isStreaming: true,
       progress: 0,
@@ -174,10 +176,14 @@ export function useStreamingAnalysis({
 
                 case 'complete': {
                   const completeData = data as GameInterviewReport;
+                  if (!completeData) {
+                    console.warn('[분석] complete 이벤트 데이터가 null');
+                    break;
+                  }
 
                   const totalQs = messages.filter(m => m.role === 'assistant').length;
                   const analyzedQs = new Set(
-                    (completeData.detailed_feedback || []).map(fb => fb.question_number)
+                    (completeData?.detailed_feedback || []).map(fb => fb?.question_number)
                   );
                   const missingQs: number[] = [];
                   for (let q = 1; q <= totalQs; q++) {
@@ -269,6 +275,20 @@ export function useStreamingAnalysis({
     });
   }, []);
 
+  const cancelAnalysis = useCallback(() => {
+    if (analysisAbortRef.current) {
+      analysisAbortRef.current.abort();
+      analysisAbortRef.current = null;
+    }
+    setIsAnalyzing(false);
+    setStreamingState({
+      isStreaming: false,
+      progress: 0,
+      currentStep: '분석이 취소되었습니다.',
+      partialReport: null,
+    });
+  }, []);
+
   return {
     interviewReport,
     isAnalyzing,
@@ -276,5 +296,7 @@ export function useStreamingAnalysis({
     startAnalysis,
     retryAnalysis,
     resetAnalysis,
+    cancelAnalysis,
+    analysisStartTime: startTimeRef.current,
   };
 }

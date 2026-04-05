@@ -8,6 +8,7 @@ import { getCurrentPhase, generateId } from '@/lib/utils';
 import type { InterviewData } from '@/lib/utils';
 import type { Message } from '@/lib/types';
 import { MAX_USER_INPUT_LENGTH, CLIENT_FETCH_TIMEOUT, INACTIVITY_WARNING_MS, INACTIVITY_AUTO_END_MS } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 interface UseInterviewOptions {
   sttModel: 'OpenAI Whisper' | 'Daglo';
@@ -103,6 +104,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
 
       // 401 응답 시 자동 로그아웃 + 상태 초기화
       if (response.status === 401) {
+        ttsSeqRef.current++; // 보류 중인 TTS 응답 무효화
         setMessages([]);
         setIsInterviewStarted(false);
         setQuestionCount(0);
@@ -139,7 +141,8 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
         if (ttsSeqRef.current !== seqId) return; // 구버전 응답 무시
         if (!r.ok) {
           if (attempt < MAX_RETRIES) continue; // 5xx 등 → 재시도
-          return; // 최종 실패는 비치명적 (텍스트는 이미 표시됨)
+          toast.info('음성 재생에 실패했습니다. 텍스트로 확인해주세요.');
+          return;
         }
         const blob = await r.blob();
         if (ttsSeqRef.current !== seqId) return;
@@ -149,7 +152,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
         if (ttsSeqRef.current !== seqId) return;
         if (e instanceof DOMException && e.name === 'AbortError') return; // 타임아웃은 재시도 안함
         if (attempt < MAX_RETRIES) continue;
-        // 최종 실패: 비치명적, 텍스트는 이미 화면에 표시됨
+        toast.info('음성 재생에 실패했습니다. 텍스트로 확인해주세요.');
       } finally {
         clearTimeout(ttsTimeout);
       }
@@ -165,10 +168,10 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
           const data = await response.json();
           setInterviewData(data);
         } else {
-          console.warn('interview_data.json을 로드할 수 없습니다. 기본 설정으로 진행합니다.');
+          logger.warn('[useInterview] interview_data.json 로드 실패, 기본 설정으로 진행');
         }
       } catch (error) {
-        console.error('면접 데이터 로드 오류:', error);
+        logger.error('[useInterview] 면접 데이터 로드 오류:', error);
       }
     };
     loadInterviewData();
@@ -257,7 +260,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
         toast.error('요청 시간이 초과되었습니다. 다시 시도해주세요.');
         return;
       }
-      console.error('면접 시작 오류:', error);
+      logger.error('[useInterview] 면접 시작 오류:', error);
       throw error; // 상위에서 toast로 처리
     } finally {
       setIsLoading(false);
@@ -326,7 +329,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
       try {
         chatData = await chatResponse.json();
       } catch (parseError) {
-        console.error('JSON 파싱 오류:', parseError);
+        logger.error('[useInterview] JSON 파싱 오류:', parseError);
         throw new Error('서버 응답을 파싱할 수 없습니다.');
       }
 

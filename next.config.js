@@ -1,3 +1,5 @@
+const isDev = process.env.NODE_ENV !== 'production';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
@@ -20,11 +22,11 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
               "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
               "img-src 'self' data: blob:",
               "font-src 'self' data: https://cdn.jsdelivr.net",
-              "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.upstash.io https://cdn.jsdelivr.net",
+              "connect-src 'self' https://api.openai.com https://falbyilzmryyrabnrctz.supabase.co https://*.upstash.io https://cdn.jsdelivr.net",
               "media-src 'self' blob:",
               "object-src 'none'",
               "frame-ancestors 'none'",

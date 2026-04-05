@@ -41,6 +41,7 @@ export default function Home() {
   const {
     interviewReport, isAnalyzing, streamingState,
     startAnalysis, retryAnalysis, resetAnalysis,
+    cancelAnalysis, analysisStartTime,
   } = useStreamingAnalysis({
     messages, selectedJob, selectedCompany, questionCount,
     isInterviewStarted, setIsInterviewStarted,
@@ -159,6 +160,8 @@ export default function Home() {
             selectedCompany={selectedCompany}
             streaming={streamingState}
             onRetryAnalysis={retryAnalysis}
+            onCancelAnalysis={cancelAnalysis}
+            analysisStartTime={analysisStartTime}
           />
         ) : (
           <div className="flex gap-4 md:gap-6 h-[calc(100svh-100px)] md:h-[calc(100svh-120px)]">
@@ -271,9 +274,11 @@ export default function Home() {
                 isLoading={isLoading}
                 isInterviewStarted={isInterviewStarted}
                 onStartInterview={handleStartInterview}
+                onStartAnalysis={handleAnalyze}
                 selectedJob={selectedJob}
                 selectedCompany={selectedCompany}
                 questionCount={questionCount}
+                isInterviewEnded={!isInterviewStarted && messages.length > 0 && questionCount >= TOTAL_QUESTION_COUNT}
               />
 
               <InputArea

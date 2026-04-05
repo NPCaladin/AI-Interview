@@ -32,6 +32,7 @@ import { 사무직군, 개발직군, COMPANY_LIST } from '@/lib/constants';
 import { useDevMode } from '@/contexts/DevModeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { PROMPT_PRESETS } from '@/lib/prompts';
+import { toast } from 'sonner';
 
 interface SidebarProps {
   onStartInterview?: () => void;
@@ -561,6 +562,7 @@ export default function Sidebar({
                     // 자소서 텍스트 길이 제한 (10,000자)
                     if (text.length > 10000) {
                       text = text.slice(0, 10000);
+                      toast.info('자소서가 10,000자를 초과하여 잘렸습니다.');
                     }
                     onResumeUpload?.(text);
                     setHasResume(true);
@@ -588,7 +590,7 @@ export default function Sidebar({
                       {hasResume ? '업로드 완료' : '.txt 파일 선택'}
                     </p>
                     <p className="text-xs text-gray-400 truncate">
-                      {hasResume ? '자소서 기반 질문이 생성됩니다' : '자소서 기반 맞춤 질문 생성'}
+                      {hasResume ? '자소서 기반 질문이 생성됩니다' : '최대 1MB, .txt 파일만 지원'}
                     </p>
                   </div>
                 </div>

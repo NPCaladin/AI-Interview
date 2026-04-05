@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, Clock, BarChart2, RefreshCw } from 'lucide-react';
 
 interface TimeoutModalProps {
@@ -17,6 +17,14 @@ export default function TimeoutModal({ type, onContinue, onAnalyze }: TimeoutMod
   }, []);
 
   const isWarning = type === 'warning';
+
+  // 경과 시간 실시간 카운트다운
+  const [remainingSeconds, setRemainingSeconds] = useState(isWarning ? 60 : 0);
+  useEffect(() => {
+    if (!isWarning || remainingSeconds <= 0) return;
+    const id = setInterval(() => setRemainingSeconds(prev => Math.max(0, prev - 1)), 1000);
+    return () => clearInterval(id);
+  }, [isWarning, remainingSeconds]);
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
@@ -62,7 +70,7 @@ export default function TimeoutModal({ type, onContinue, onAnalyze }: TimeoutMod
         {/* 본문 */}
         <p className="text-center text-sm text-gray-300 font-sans leading-relaxed mb-6">
           {isWarning
-            ? <>3분째 응답이 없습니다.<br /><span className="text-amber-300 font-semibold">1분 후 면접이 자동 종료</span>됩니다.</>
+            ? <>3분째 응답이 없습니다.<br /><span className="text-amber-300 font-semibold">{remainingSeconds}초 후 면접이 자동 종료</span>됩니다.</>
             : <>지금까지의 답변으로<br /><span className="text-[#00F2FF] font-semibold">AI 분석을 시작</span>하시겠습니까?</>
           }
         </p>

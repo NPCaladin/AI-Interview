@@ -30,20 +30,43 @@ const PUBLIC_PATHS = ['/api/auth/verify', '/api/admin/auth'];
 // Rate limit 설정
 const AUTH_LIMIT = { max: 10, window: 60_000 };       // 인증: 10회/분 (IP 기반)
 const API_LIMIT  = { max: 30, window: 60_000 };       // 일반 API: 30회/분 (studentId 기반)
+const VERIFY_LIMIT = { max: 5, window: 15 * 60_000 }; // 인증 시도: 5회/15분 (브루트포스 방지)
 
 function getClientIp(request: NextRequest): string {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')
-    || 'unknown';
+  // Vercel이 주입하는 신뢰할 수 있는 IP (프록시 스푸핑 불가)
+  if ('ip' in request && typeof (request as any).ip === 'string') {
+    return (request as any).ip;
+  }
+  // 개발 환경 폴백
+  return request.headers.get('x-real-ip') || '127.0.0.1';
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const clientIp = getClientIp(request);
 
+  // CSRF 방어: 변경 요청의 Origin 헤더 검증
+  const method = request.method;
+  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
+    const origin = request.headers.get('origin');
+    const allowedOrigins = [
+      process.env.NEXT_PUBLIC_APP_URL,
+      'http://localhost:3001',
+      'https://interview.evenigame.com',
+    ].filter(Boolean);
+    if (origin && !allowedOrigins.some(allowed => origin === allowed)) {
+      return NextResponse.json(
+        { error: '허용되지 않은 출처의 요청입니다.' },
+        { status: 403 }
+      );
+    }
+  }
+
   // 공개 경로 (JWT 불필요, rate limit만 적용)
   if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
-    const rl = await rateLimit(`auth:${clientIp}`, AUTH_LIMIT.max, AUTH_LIMIT.window);
+    const isVerify = pathname.startsWith('/api/auth/verify');
+    const limit = isVerify ? VERIFY_LIMIT : AUTH_LIMIT;
+    const rl = await rateLimit(`${isVerify ? 'verify' : 'auth'}:${clientIp}`, limit.max, limit.window);
     if (!rl.ok) {
       return NextResponse.json(
         { error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
@@ -65,7 +88,9 @@ export async function middleware(request: NextRequest) {
   const token = authHeader.slice(7);
 
   try {
-    const { payload } = await jwtVerify(token, getSecretKey());
+    const { payload } = await jwtVerify(token, getSecretKey(), {
+      issuer: 'eveni-interview',
+    });
 
     // ── admin 라우트 분기 ──
     if (pathname.startsWith('/api/admin/')) {

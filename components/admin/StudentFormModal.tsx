@@ -29,6 +29,8 @@ export default function StudentFormModal({ student, onClose, onSuccess }: Studen
   const [weeklyLimit, setWeeklyLimit] = useState(student?.weekly_limit ?? 3);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [codeError, setCodeError] = useState('');
+  const [nameError, setNameError] = useState('');
 
   // 배경 스크롤 방지
   useEffect(() => {
@@ -102,12 +104,21 @@ export default function StudentFormModal({ student, onClose, onSuccess }: Studen
             <input
               type="text"
               value={isEdit ? student.code : code}
-              onChange={(e) => !isEdit && setCode(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                if (isEdit) return;
+                const val = e.target.value.toUpperCase();
+                setCode(val);
+                setCodeError(val.trim().length > 0 && val.trim().length < 3 ? '코드는 3자 이상이어야 합니다.' : '');
+              }}
               disabled={isEdit || isSubmitting}
               maxLength={30}
               placeholder="STU-001"
               className="w-full px-4 py-3 bg-dark-700/80 border border-dark-500 rounded-xl text-white font-mono tracking-widest placeholder:text-gray-500 focus:border-[#00F2FF]/60 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
+            <div className="flex justify-between mt-1">
+              {codeError ? <span className="text-xs text-red-400">{codeError}</span> : <span />}
+              {!isEdit && <span className="text-xs text-gray-500">{code.length}/30</span>}
+            </div>
           </div>
 
           {/* 이름 */}
@@ -116,12 +127,19 @@ export default function StudentFormModal({ student, onClose, onSuccess }: Studen
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameError(e.target.value.trim().length > 0 && e.target.value.trim().length < 2 ? '이름은 2자 이상이어야 합니다.' : '');
+              }}
               disabled={isSubmitting}
               maxLength={50}
               placeholder="홍길동"
               className="w-full px-4 py-3 bg-dark-700/80 border border-dark-500 rounded-xl text-white placeholder:text-gray-500 focus:border-[#00F2FF]/60 focus:outline-none transition-colors disabled:opacity-50"
             />
+            <div className="flex justify-between mt-1">
+              {nameError ? <span className="text-xs text-red-400">{nameError}</span> : <span />}
+              <span className="text-xs text-gray-500">{name.length}/50</span>
+            </div>
           </div>
 
           {/* 주간 제한 */}
@@ -163,7 +181,7 @@ export default function StudentFormModal({ student, onClose, onSuccess }: Studen
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || (!isEdit && !code.trim()) || !name.trim()}
+              disabled={isSubmitting || (!isEdit && (code.trim().length < 3)) || name.trim().length < 2 || !!codeError || !!nameError}
               className="
                 flex-1 py-3 rounded-xl text-sm font-bold
                 bg-gradient-to-r from-[#00D9A5] to-[#00F2FF]
