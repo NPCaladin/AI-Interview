@@ -77,19 +77,21 @@ export default function Home() {
   }, [interviewAudioInput]);
 
   const handleAnalyze = useCallback(async () => {
+    clearAudioUrl(); // 재생 중인 면접관 음성 즉시 정지
     try {
       await startAnalysis();
     } catch (error) {
       const msg = error instanceof Error ? error.message : '면접 분석에 실패했습니다.';
       toast.error(msg);
     }
-  }, [startAnalysis]);
+  }, [clearAudioUrl, startAnalysis]);
 
   // 타임아웃 모달 "지금 분석하기": 면접 종료 + 즉시 분석 시작
   const handleTimeoutAnalyze = useCallback(() => {
+    clearAudioUrl(); // 재생 중인 면접관 음성 즉시 정지
     handleTimeoutEnd();
     handleAnalyze();
-  }, [handleTimeoutEnd, handleAnalyze]);
+  }, [clearAudioUrl, handleTimeoutEnd, handleAnalyze]);
 
   const handleReset = useCallback(() => {
     interviewReset();

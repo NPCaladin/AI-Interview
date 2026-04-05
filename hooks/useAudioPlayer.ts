@@ -100,6 +100,11 @@ export function useAudioPlayer() {
   }, []);
 
   const clearAudioUrl = useCallback(() => {
+    // 재생 중인 오디오 즉시 정지
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     setAudioUrl(prevUrl => {
       if (prevUrl) URL.revokeObjectURL(prevUrl);
       return null;
