@@ -1,14 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, MicOff, Upload, Send, Loader2, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Mic, MicOff, Upload, Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MAX_USER_INPUT_LENGTH } from '@/lib/constants';
-
-interface AudioDevice {
-  deviceId: string;
-  label: string;
-}
 
 interface InputAreaProps {
   onSendMessage?: (message: string) => void;
@@ -17,6 +12,7 @@ interface InputAreaProps {
   isInterviewStarted?: boolean;
   isLoading?: boolean;
   isInterviewEnded?: boolean;
+  selectedMicDeviceId?: string;
 }
 
 export default function InputArea({
@@ -26,40 +22,16 @@ export default function InputArea({
   isInterviewStarted = false,
   isLoading = false,
   isInterviewEnded = false,
+  selectedMicDeviceId = '',
 }: InputAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
-  const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const [showDeviceSelector, setShowDeviceSelector] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const mimeTypeRef = useRef<string>('audio/webm');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const deviceSelectorRef = useRef<HTMLDivElement>(null);
-
-  // 마이크 장치 목록 조회
-  const loadAudioDevices = useCallback(async () => {
-    try {
-      // 권한 획득 후 장치 목록 조회 (권한 없으면 label이 빈 문자열)
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const mics = devices
-        .filter(d => d.kind === 'audioinput')
-        .map((d, i) => ({
-          deviceId: d.deviceId,
-          label: d.label || `마이크 ${i + 1}`,
-        }));
-      setAudioDevices(mics);
-      // 선택된 장치가 없거나 목록에 없으면 첫 번째로 설정
-      if (mics.length > 0 && (!selectedDeviceId || !mics.some(m => m.deviceId === selectedDeviceId))) {
-        setSelectedDeviceId(mics[0].deviceId);
-      }
-    } catch {
-      // 장치 조회 실패 시 무시
-    }
-  }, [selectedDeviceId]);
 
   // 컴포넌트 언마운트 시 녹음 스트림 정리
   useEffect(() => {
@@ -68,39 +40,17 @@ export default function InputArea({
     };
   }, []);
 
-  // 면접 시작 시 마이크 권한 사전 획득 + 장치 목록 로드
+  // 면접 시작 시 마이크 권한 사전 획득 (클릭 후 첫마디 짤림 방지)
   useEffect(() => {
     if (!isInterviewStarted) return;
     navigator.mediaDevices?.getUserMedia({ audio: true })
-      .then(stream => {
-        stream.getTracks().forEach(t => t.stop());
-        loadAudioDevices(); // 권한 획득 후 장치 목록 로드
-      })
-      .catch(() => {}); // 권한 거부 시 무시 (클릭 시 다시 요청됨)
-  }, [isInterviewStarted, loadAudioDevices]);
-
-  // 장치 변경 감지 (마이크 연결/해제 시 목록 갱신)
-  useEffect(() => {
-    const handler = () => loadAudioDevices();
-    navigator.mediaDevices?.addEventListener('devicechange', handler);
-    return () => navigator.mediaDevices?.removeEventListener('devicechange', handler);
-  }, [loadAudioDevices]);
-
-  // 마이크 선택 드롭다운 외부 클릭 닫기
-  useEffect(() => {
-    if (!showDeviceSelector) return;
-    const handler = (e: MouseEvent) => {
-      if (deviceSelectorRef.current && !deviceSelectorRef.current.contains(e.target as Node)) {
-        setShowDeviceSelector(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showDeviceSelector]);
+      .then(stream => stream.getTracks().forEach(t => t.stop()))
+      .catch(() => {});
+  }, [isInterviewStarted]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUnlockAudio?.(); // iOS Safari AudioContext 잠금 해제
+    onUnlockAudio?.();
 
     if (!isInterviewStarted) {
       toast.error(window.innerWidth < 768 ? '☰ 메뉴에서 직군/회사 선택 후 시작해주세요.' : '좌측 사이드바에서 직군/회사를 선택 후 면접을 시작해주세요.');
@@ -121,7 +71,7 @@ export default function InputArea({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
+        audio: selectedMicDeviceId ? { deviceId: { exact: selectedMicDeviceId } } : true,
       });
       streamRef.current = stream;
       const mediaRecorder = new MediaRecorder(stream);
@@ -137,8 +87,6 @@ export default function InputArea({
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeTypeRef.current });
-
-        // 스트림 정리
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
 
@@ -168,7 +116,7 @@ export default function InputArea({
   };
 
   const handleMicClick = () => {
-    onUnlockAudio?.(); // iOS Safari AudioContext 잠금 해제
+    onUnlockAudio?.();
     if (isRecording) {
       stopRecording();
     } else {
@@ -203,67 +151,26 @@ export default function InputArea({
       {/* 플로팅 입력 바 */}
       <div className="px-3 md:px-6 pb-4 md:pb-6 bg-dark-900">
         <div className="max-w-4xl mx-auto glass-card-dark rounded-full p-1.5 md:p-2 flex items-center gap-1.5 md:gap-2">
-          {/* 마이크 버튼 + 장치 선택 */}
-          <div className="relative flex-shrink-0" ref={deviceSelectorRef}>
-            <div className="flex items-center">
-              <button
-                type="button"
-                onClick={handleMicClick}
-                disabled={!isInterviewStarted || isLoading || isProcessingAudio}
-                className={`flex-shrink-0 w-11 h-11 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                  isRecording
-                    ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30 animate-pulse'
-                    : isInterviewStarted && !isLoading && !isProcessingAudio
-                    ? 'bg-gradient-gaming text-white shadow-glow hover:shadow-glow-lg'
-                    : 'bg-dark-600 text-gray-500 cursor-not-allowed'
-                }`}
-                aria-label={isRecording ? '녹음 중지' : '녹음 시작'}
-              >
-                {isRecording ? (
-                  <MicOff className="w-5 h-5 md:w-6 md:h-6" />
-                ) : (
-                  <Mic className="w-5 h-5 md:w-6 md:h-6" />
-                )}
-              </button>
-              {/* 마이크 선택 화살표 (장치 2개 이상일 때만) */}
-              {audioDevices.length > 1 && !isRecording && (
-                <button
-                  type="button"
-                  onClick={() => setShowDeviceSelector(!showDeviceSelector)}
-                  className="flex-shrink-0 w-5 h-5 -ml-1.5 rounded-full bg-dark-600 border border-dark-500 flex items-center justify-center hover:bg-dark-500 transition-colors"
-                  aria-label="마이크 선택"
-                >
-                  <ChevronDown className="w-3 h-3 text-gray-400" />
-                </button>
-              )}
-            </div>
-
-            {/* 마이크 선택 드롭다운 */}
-            {showDeviceSelector && audioDevices.length > 1 && (
-              <div className="absolute bottom-full left-0 mb-2 w-56 bg-dark-800 border border-dark-500 rounded-xl shadow-2xl overflow-hidden z-50">
-                <div className="px-3 py-2 border-b border-dark-600">
-                  <span className="text-xs font-medium text-gray-400">마이크 선택</span>
-                </div>
-                {audioDevices.map((device) => (
-                  <button
-                    key={device.deviceId}
-                    onClick={() => {
-                      setSelectedDeviceId(device.deviceId);
-                      setShowDeviceSelector(false);
-                      toast.success(`마이크: ${device.label}`);
-                    }}
-                    className={`w-full text-left px-3 py-2.5 text-xs transition-colors truncate ${
-                      selectedDeviceId === device.deviceId
-                        ? 'bg-[#00F2FF]/10 text-[#00F2FF]'
-                        : 'text-gray-300 hover:bg-dark-700'
-                    }`}
-                  >
-                    {device.label}
-                  </button>
-                ))}
-              </div>
+          {/* 마이크 버튼 */}
+          <button
+            type="button"
+            onClick={handleMicClick}
+            disabled={!isInterviewStarted || isLoading || isProcessingAudio}
+            className={`flex-shrink-0 w-11 h-11 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+              isRecording
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30 animate-pulse'
+                : isInterviewStarted && !isLoading && !isProcessingAudio
+                ? 'bg-gradient-gaming text-white shadow-glow hover:shadow-glow-lg'
+                : 'bg-dark-600 text-gray-500 cursor-not-allowed'
+            }`}
+            aria-label={isRecording ? '녹음 중지' : '녹음 시작'}
+          >
+            {isRecording ? (
+              <MicOff className="w-5 h-5 md:w-6 md:h-6" />
+            ) : (
+              <Mic className="w-5 h-5 md:w-6 md:h-6" />
             )}
-          </div>
+          </button>
 
           {/* 파일 업로드 버튼 - 모바일에서 숨김 */}
           <input

@@ -49,6 +49,9 @@ interface SidebarProps {
   canAnalyze?: boolean;
   isAnalyzing?: boolean;
   onResumeUpload?: (text: string) => void;
+  // 마이크 선택
+  selectedMicDeviceId?: string;
+  onMicDeviceChange?: (deviceId: string) => void;
   // 모바일 드로어
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
@@ -336,6 +339,8 @@ export default function Sidebar({
   canAnalyze = false,
   isAnalyzing = false,
   onResumeUpload,
+  selectedMicDeviceId = '',
+  onMicDeviceChange,
   isMobileOpen = false,
   onMobileClose,
 }: SidebarProps) {
@@ -674,8 +679,8 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* 마이크 테스트 */}
-        <MicTestSection />
+        {/* 마이크 테스트 + 장치 선택 */}
+        <MicTestSection selectedDeviceId={selectedMicDeviceId} onDeviceChange={onMicDeviceChange} />
 
         {/* 개발자 모드 (로컬 전용) */}
         {process.env.NEXT_PUBLIC_DEV_MODE_ENABLED === 'true' && <DevModeSection />}
@@ -800,12 +805,53 @@ export default function Sidebar({
 }
 
 // 마이크 테스트 섹션 컴포넌트
-function MicTestSection() {
+interface AudioDevice {
+  deviceId: string;
+  label: string;
+}
+
+function MicTestSection({
+  selectedDeviceId,
+  onDeviceChange,
+}: {
+  selectedDeviceId?: string;
+  onDeviceChange?: (deviceId: string) => void;
+}) {
   const [status, setStatus] = useState<'idle' | 'testing' | 'denied' | 'error'>('idle');
   const [level, setLevel] = useState(0);
+  const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animFrameRef = useRef<number | null>(null);
+
+  // 마이크 장치 목록 조회
+  const loadAudioDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const mics = devices
+        .filter(d => d.kind === 'audioinput')
+        .map((d, i) => ({
+          deviceId: d.deviceId,
+          label: d.label || `마이크 ${i + 1}`,
+        }));
+      setAudioDevices(mics);
+      // 선택된 장치가 없거나 목록에 없으면 첫 번째로 설정
+      if (mics.length > 0 && onDeviceChange) {
+        if (!selectedDeviceId || !mics.some(m => m.deviceId === selectedDeviceId)) {
+          onDeviceChange(mics[0].deviceId);
+        }
+      }
+    } catch {
+      // 장치 조회 실패 시 무시
+    }
+  }, [selectedDeviceId, onDeviceChange]);
+
+  // 장치 변경 감지
+  useEffect(() => {
+    const handler = () => loadAudioDevices();
+    navigator.mediaDevices?.addEventListener('devicechange', handler);
+    return () => navigator.mediaDevices?.removeEventListener('devicechange', handler);
+  }, [loadAudioDevices]);
 
   const stopTest = useCallback(() => {
     if (animFrameRef.current !== null) {
@@ -834,7 +880,11 @@ function MicTestSection() {
 
   const startTest = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
+      });
+      // 권한 획득 후 장치 목록 로드
+      loadAudioDevices();
       streamRef.current = stream;
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
@@ -924,6 +974,24 @@ function MicTestSection() {
         <Mic className={`w-3 h-3 ${status === 'testing' ? 'animate-pulse' : ''}`} />
         {status === 'testing' ? '중지' : '테스트'}
       </button>
+
+      {/* 마이크 선택 드롭다운 */}
+      {audioDevices.length > 0 && (
+        <div className="mt-2">
+          <label className="block text-[10px] text-gray-500 mb-1">입력 장치</label>
+          <select
+            value={selectedDeviceId || ''}
+            onChange={(e) => onDeviceChange?.(e.target.value)}
+            className="w-full px-2 py-1.5 bg-dark-600/80 border border-dark-500 rounded-lg text-xs text-gray-300 focus:border-[#00F2FF]/50 focus:outline-none transition-colors appearance-none cursor-pointer"
+          >
+            {audioDevices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 }

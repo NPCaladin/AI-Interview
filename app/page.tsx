@@ -23,6 +23,7 @@ export default function Home() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [sttModel, setSttModel] = useState<'OpenAI Whisper' | 'Daglo'>('OpenAI Whisper');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [selectedMicDeviceId, setSelectedMicDeviceId] = useState('');
 
   const {
     audioUrl, audioPlayFailed, audioRef, handleManualAudioPlay,
@@ -184,6 +185,8 @@ export default function Home() {
                 canAnalyze={canAnalyze}
                 isAnalyzing={isAnalyzing}
                 onResumeUpload={setResumeText}
+                selectedMicDeviceId={selectedMicDeviceId}
+                onMicDeviceChange={setSelectedMicDeviceId}
               />
             </div>
 
@@ -213,6 +216,8 @@ export default function Home() {
                 canAnalyze={canAnalyze}
                 isAnalyzing={isAnalyzing}
                 onResumeUpload={setResumeText}
+                selectedMicDeviceId={selectedMicDeviceId}
+                onMicDeviceChange={setSelectedMicDeviceId}
                 isMobileOpen={isMobileMenuOpen}
                 onMobileClose={() => setIsMobileMenuOpen(false)}
               />
@@ -290,6 +295,7 @@ export default function Home() {
                 isInterviewStarted={isInterviewStarted}
                 isLoading={isLoading}
                 isInterviewEnded={!isInterviewStarted && messages.length > 0 && questionCount >= TOTAL_QUESTION_COUNT}
+                selectedMicDeviceId={selectedMicDeviceId}
               />
             </div>
 

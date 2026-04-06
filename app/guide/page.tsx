@@ -58,7 +58,7 @@ export default function GuidePage() {
               {[
                 { step: '01', title: '직군 선택', desc: '사이드바에서 면접 볼 직군을 선택합니다. 자소서를 업로드하면 맞춤 질문을 받을 수 있습니다.' },
                 { step: '02', title: '면접 시작', desc: '"면접 시작" 버튼을 누르면 AI 면접관이 첫 질문을 합니다. 준비가 되면 바로 답변하세요.' },
-                { step: '03', title: '음성 답변', desc: '마이크 버튼을 눌러 음성으로 답변하거나, 텍스트로 직접 입력할 수 있습니다.' },
+                { step: '03', title: '음성 답변', desc: '사이드바의 마이크 테스트에서 입력 장치를 선택하고 테스트한 뒤, 마이크 버튼을 눌러 음성으로 답변하세요. 텍스트 직접 입력도 가능합니다.' },
                 { step: '04', title: '분석 리포트', desc: '12개 질문이 끝나면 STAR 기법 달성도, 역량별 평가, 개선 포인트가 담긴 리포트를 받습니다.' },
               ].map(({ step, title, desc }) => (
                 <div key={step} className="flex gap-4 p-4 rounded-lg bg-white/[0.03] border border-white/5">
