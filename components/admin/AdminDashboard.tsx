@@ -152,10 +152,7 @@ export default function AdminDashboard() {
       {showAddModal && (
         <StudentFormModal
           onClose={() => setShowAddModal(false)}
-          onSuccess={() => {
-            handleRefresh();
-            setStudentsRefreshKey((k) => k + 1);
-          }}
+          onSuccess={handleRefresh}
         />
       )}
     </div>

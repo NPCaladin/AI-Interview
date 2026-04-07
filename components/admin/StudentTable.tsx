@@ -89,6 +89,9 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
         if (data && !controller.signal.aborted) {
           setStudents(data.students || []);
           setTotal(data.total || 0);
+          // 마지막 페이지 삭제 시 빈 페이지 보정
+          const maxPage = Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE));
+          if (page > maxPage) setPage(maxPage);
         }
       })
       .catch((err) => {
