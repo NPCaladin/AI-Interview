@@ -25,41 +25,29 @@ export async function GET() {
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - daysFromMonday);
     weekStart.setHours(0, 0, 0, 0);
-    const weekStartISO = weekStart.toISOString();
 
-    // DB 서버 집계: 누적 사용량 (student_id별 COUNT)
-    const { data: totalCounts, error: totalErr } = await supabase
+    // 최소 컬럼만 조회 (student_id, created_at만 — 1회 쿼리)
+    const { data: allLogs, error: usageError } = await supabase
       .from('usage_logs')
-      .select('student_id')
-      .then(({ data, error }) => {
-        if (error) return { data: null, error };
-        // 서버에서 group by 미지원 시 클라이언트 집계 (최소한의 컬럼만)
-        const map = new Map<string, number>();
-        (data || []).forEach((r: { student_id: string }) => {
-          map.set(r.student_id, (map.get(r.student_id) || 0) + 1);
-        });
-        return { data: map, error: null };
-      });
+      .select('student_id, created_at');
 
-    // DB 서버 집계: 주간 사용량 (weekStart 이후만)
-    const { data: weeklyCounts, error: weeklyErr } = await supabase
-      .from('usage_logs')
-      .select('student_id')
-      .gte('created_at', weekStartISO)
-      .then(({ data, error }) => {
-        if (error) return { data: null, error };
-        const map = new Map<string, number>();
-        (data || []).forEach((r: { student_id: string }) => {
-          map.set(r.student_id, (map.get(r.student_id) || 0) + 1);
-        });
-        return { data: map, error: null };
-      });
+    if (usageError) {
+      logger.error('[Admin Students GET] Usage query error:', usageError);
+    }
 
-    if (totalErr) logger.error('[Admin Students GET] Total usage query error:', totalErr);
-    if (weeklyErr) logger.error('[Admin Students GET] Weekly usage query error:', weeklyErr);
-
-    const totalMap = totalCounts || new Map<string, number>();
-    const weeklyMap = weeklyCounts || new Map<string, number>();
+    // 주간 / 누적 집계 (date 비교 최소화: weekStart 타임스탬프 한 번만 계산)
+    const weeklyMap = new Map<string, number>();
+    const totalMap = new Map<string, number>();
+    const weekStartTime = weekStart.getTime();
+    const logs = allLogs || [];
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i] as { student_id: string; created_at: string };
+      const sid = log.student_id;
+      totalMap.set(sid, (totalMap.get(sid) || 0) + 1);
+      if (Date.parse(log.created_at) >= weekStartTime) {
+        weeklyMap.set(sid, (weeklyMap.get(sid) || 0) + 1);
+      }
+    }
 
     const result = (students || []).map((s: {
       id: string;

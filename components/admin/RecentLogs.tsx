@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { Clock, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 
@@ -48,16 +48,10 @@ export default function RecentLogs({ refreshKey = 0 }: { refreshKey?: number }) 
     fetchLogs();
   }, [fetchLogs, refreshKey]);
 
-  // KST 오프셋: UTC+9 (toLocaleString 호출 없이 직접 계산)
-  const KST_OFFSET = 9 * 60 * 60 * 1000;
-  const toKST = (iso: string) => new Date(new Date(iso).getTime() + KST_OFFSET);
-
-  // now를 렌더링 1회만 계산 (logs가 바뀔 때만 갱신)
-  const nowKST = useMemo(() => Date.now() + KST_OFFSET, [logs]);
-
-  const formatDateTime = useCallback((iso: string) => {
-    const kst = toKST(iso);
-    const diffMs = nowKST - kst.getTime();
+  const formatDateTime = (iso: string) => {
+    const logTime = new Date(iso).getTime();
+    const nowTime = Date.now();
+    const diffMs = nowTime - logTime;
     const diffMin = Math.floor(diffMs / 60000);
     const diffHour = Math.floor(diffMs / 3600000);
 
@@ -65,13 +59,15 @@ export default function RecentLogs({ refreshKey = 0 }: { refreshKey?: number }) 
     if (diffMin < 60) return `${diffMin}분 전`;
     if (diffHour < 24) return `${diffHour}시간 전`;
 
+    // KST = UTC+9
+    const kst = new Date(logTime + 9 * 3600000);
     return `${kst.getUTCMonth() + 1}/${kst.getUTCDate()} ${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
-  }, [nowKST]);
+  };
 
-  const formatDateTimeFull = useCallback((iso: string) => {
-    const kst = toKST(iso);
+  const formatDateTimeFull = (iso: string) => {
+    const kst = new Date(new Date(iso).getTime() + 9 * 3600000);
     return `${kst.getUTCFullYear()}.${String(kst.getUTCMonth() + 1).padStart(2, '0')}.${String(kst.getUTCDate()).padStart(2, '0')} ${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
-  }, []);
+  };
 
   return (
     <div className="glass-card-dark rounded-xl border border-white/10 p-5">
