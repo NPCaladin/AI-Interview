@@ -18,6 +18,7 @@ interface Student {
 
 interface StudentTableProps {
   onRefresh: () => void;
+  refreshKey?: number;
 }
 
 type Filter = 'all' | 'active' | 'inactive';
@@ -37,12 +38,13 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
   );
 }
 
-export default function StudentTable({ onRefresh }: StudentTableProps) {
+export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTableProps) {
   const { authHeaders } = useAdminAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [editStudent, setEditStudent] = useState<Student | null>(null);
@@ -50,46 +52,58 @@ export default function StudentTable({ onRefresh }: StudentTableProps) {
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // 서버에서 학생 목록 조회
-  const fetchStudents = useCallback(async (p: number, s: string, f: Filter) => {
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(p),
-        limit: String(PAGE_SIZE),
-        ...(s && { search: s }),
-        ...(f !== 'all' && { filter: f }),
-      });
-      const res = await fetch(`/api/admin/students?${params}`, { headers: authHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setStudents(data.students || []);
-        setTotal(data.total || 0);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setIsLoading(false);
-    }
-  }, [authHeaders]);
-
-  // 페이지/필터 변경 시 즉시 조회
+  // 검색어 디바운스 (300ms)
   useEffect(() => {
-    fetchStudents(page, search, filter);
-  }, [page, filter, fetchStudents]); // search는 debounce로 처리
+    const id = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // 검색 변경 시 1페이지로
+    }, 300);
+    return () => clearTimeout(id);
+  }, [search]);
 
-  // 검색어 변경 시 300ms 디바운스
+  // 단일 useEffect로 모든 조건 변경 시 서버 조회 (AbortController로 경쟁 방지)
+  useEffect(() => {
+    // 이전 요청 취소
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(PAGE_SIZE),
+      ...(debouncedSearch && { search: debouncedSearch }),
+      ...(filter !== 'all' && { filter }),
+    });
+
+    fetch(`/api/admin/students?${params}`, {
+      headers: authHeaders(),
+      signal: controller.signal,
+    })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data && !controller.signal.aborted) {
+          setStudents(data.students || []);
+          setTotal(data.total || 0);
+        }
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [page, debouncedSearch, filter, refreshKey, authHeaders]);
+
+  // 검색어 입력 핸들러 (UI만 업데이트, 실제 조회는 debouncedSearch가 담당)
   const handleSearchChange = (value: string) => {
     setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchStudents(1, value, filter);
-    }, 300);
   };
 
   // 필터 변경
@@ -98,11 +112,8 @@ export default function StudentTable({ onRefresh }: StudentTableProps) {
     setPage(1);
   };
 
-  // 새로고침 (외부에서 호출 + 내부 갱신)
-  const refresh = useCallback(() => {
-    fetchStudents(page, search, filter);
-    onRefresh();
-  }, [fetchStudents, page, search, filter, onRefresh]);
+  // 액션 후 갱신 — onRefresh가 상위에서 refreshKey를 증가시키므로 useEffect가 재실행됨
+  const refresh = onRefresh;
 
   const handleToggle = async (student: Student) => {
     if (togglingId) return;

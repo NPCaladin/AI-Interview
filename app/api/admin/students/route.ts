@@ -23,9 +23,10 @@ export async function GET(request: NextRequest) {
     if (filter === 'active') query = query.eq('is_active', true);
     else if (filter === 'inactive') query = query.eq('is_active', false);
 
-    // 검색 (code 또는 name)
+    // 검색 (code 또는 name) — PostgREST 특수문자 이스케이프
     if (search) {
-      query = query.or(`code.ilike.%${search}%,name.ilike.%${search}%`);
+      const safe = search.replace(/[%_\\,().*]/g, (c) => `\\${c}`);
+      query = query.or(`code.ilike.%${safe}%,name.ilike.%${safe}%`);
     }
 
     // 정렬 + 페이지네이션

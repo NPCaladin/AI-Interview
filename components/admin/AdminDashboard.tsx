@@ -24,6 +24,7 @@ export default function AdminDashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [logsRefreshKey, setLogsRefreshKey] = useState(0);
+  const [studentsRefreshKey, setStudentsRefreshKey] = useState(0);
   // UsageChart/RecentLogs는 stats 로드 후 마운트 (초기 요청 분산)
   const [showCharts, setShowCharts] = useState(false);
 
@@ -53,6 +54,7 @@ export default function AdminDashboard() {
     setIsRefreshing(true);
     await fetchStats();
     setLogsRefreshKey((k) => k + 1);
+    setStudentsRefreshKey((k) => k + 1);
     setIsRefreshing(false);
   };
 
@@ -142,7 +144,7 @@ export default function AdminDashboard() {
             </button>
           </div>
 
-          <StudentTable onRefresh={handleRefresh} />
+          <StudentTable onRefresh={handleRefresh} refreshKey={studentsRefreshKey} />
         </div>
       </div>
 
@@ -150,7 +152,10 @@ export default function AdminDashboard() {
       {showAddModal && (
         <StudentFormModal
           onClose={() => setShowAddModal(false)}
-          onSuccess={handleRefresh}
+          onSuccess={() => {
+            handleRefresh();
+            setStudentsRefreshKey((k) => k + 1);
+          }}
         />
       )}
     </div>
