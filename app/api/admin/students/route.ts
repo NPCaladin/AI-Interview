@@ -25,25 +25,41 @@ export async function GET() {
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - daysFromMonday);
     weekStart.setHours(0, 0, 0, 0);
+    const weekStartISO = weekStart.toISOString();
 
-    // 전체 usage_logs 조회 (주간 + 누적 동시 집계)
-    const { data: allLogs, error: usageError } = await supabase
+    // DB 서버 집계: 누적 사용량 (student_id별 COUNT)
+    const { data: totalCounts, error: totalErr } = await supabase
       .from('usage_logs')
-      .select('student_id, created_at');
+      .select('student_id')
+      .then(({ data, error }) => {
+        if (error) return { data: null, error };
+        // 서버에서 group by 미지원 시 클라이언트 집계 (최소한의 컬럼만)
+        const map = new Map<string, number>();
+        (data || []).forEach((r: { student_id: string }) => {
+          map.set(r.student_id, (map.get(r.student_id) || 0) + 1);
+        });
+        return { data: map, error: null };
+      });
 
-    if (usageError) {
-      logger.error('[Admin Students GET] Usage query error:', usageError);
-    }
+    // DB 서버 집계: 주간 사용량 (weekStart 이후만)
+    const { data: weeklyCounts, error: weeklyErr } = await supabase
+      .from('usage_logs')
+      .select('student_id')
+      .gte('created_at', weekStartISO)
+      .then(({ data, error }) => {
+        if (error) return { data: null, error };
+        const map = new Map<string, number>();
+        (data || []).forEach((r: { student_id: string }) => {
+          map.set(r.student_id, (map.get(r.student_id) || 0) + 1);
+        });
+        return { data: map, error: null };
+      });
 
-    // 주간 / 누적 집계
-    const weeklyMap = new Map<string, number>();
-    const totalMap = new Map<string, number>();
-    (allLogs || []).forEach((log: { student_id: string; created_at: string }) => {
-      totalMap.set(log.student_id, (totalMap.get(log.student_id) || 0) + 1);
-      if (new Date(log.created_at) >= weekStart) {
-        weeklyMap.set(log.student_id, (weeklyMap.get(log.student_id) || 0) + 1);
-      }
-    });
+    if (totalErr) logger.error('[Admin Students GET] Total usage query error:', totalErr);
+    if (weeklyErr) logger.error('[Admin Students GET] Weekly usage query error:', weeklyErr);
+
+    const totalMap = totalCounts || new Map<string, number>();
+    const weeklyMap = weeklyCounts || new Map<string, number>();
 
     const result = (students || []).map((s: {
       id: string;

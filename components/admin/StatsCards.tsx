@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Users, UserCheck, Activity, TrendingUp } from 'lucide-react';
 
 interface Stats {
@@ -13,7 +14,7 @@ interface StatsCardsProps {
   stats: Stats;
 }
 
-export default function StatsCards({ stats }: StatsCardsProps) {
+export default memo(function StatsCards({ stats }: StatsCardsProps) {
   const cards = [
     {
       label: '전체 학생',
@@ -76,4 +77,4 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       })}
     </div>
   );
-}
+})

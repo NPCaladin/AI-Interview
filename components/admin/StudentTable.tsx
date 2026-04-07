@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { Search, Pencil, ToggleLeft, ToggleRight, Loader2, RotateCcw, Trash2 } from 'lucide-react';
 import StudentFormModal from './StudentFormModal';
@@ -47,14 +47,17 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
-  const filtered = students.filter((s) => {
-    const matchesSearch =
-      s.code.toLowerCase().includes(search.toLowerCase()) ||
-      s.name.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter =
-      filter === 'all' || (filter === 'active' ? s.is_active : !s.is_active);
-    return matchesSearch && matchesFilter;
-  });
+  const filtered = useMemo(() => {
+    const searchLower = search.toLowerCase();
+    return students.filter((s) => {
+      const matchesSearch =
+        s.code.toLowerCase().includes(searchLower) ||
+        s.name.toLowerCase().includes(searchLower);
+      const matchesFilter =
+        filter === 'all' || (filter === 'active' ? s.is_active : !s.is_active);
+      return matchesSearch && matchesFilter;
+    });
+  }, [students, search, filter]);
 
   const handleToggle = async (student: Student) => {
     if (togglingId) return;

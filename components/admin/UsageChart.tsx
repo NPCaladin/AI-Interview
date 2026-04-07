@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { TrendingUp, Loader2 } from 'lucide-react';
 
@@ -33,19 +33,19 @@ export default function UsageChart() {
     fetchData();
   }, [fetchData]);
 
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-  const totalCount = data.reduce((sum, d) => sum + d.count, 0);
-  const totalUsers = new Set(data.flatMap((d) => Array(d.uniqueUsers).fill(0))).size;
+  const { maxCount, totalCount, totalUsers, todayStr } = useMemo(() => {
+    const mc = Math.max(...data.map((d) => d.count), 1);
+    const tc = data.reduce((sum, d) => sum + d.count, 0);
+    const tu = data.reduce((sum, d) => sum + d.uniqueUsers, 0);
+    // 오늘 날짜 1회만 계산
+    const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const ts = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}-${String(kst.getDate()).padStart(2, '0')}`;
+    return { maxCount: mc, totalCount: tc, totalUsers: tu, todayStr: ts };
+  }, [data]);
 
   const formatDate = (dateStr: string) => {
     const [, m, d] = dateStr.split('-');
     return `${parseInt(m)}/${parseInt(d)}`;
-  };
-
-  const isToday = (dateStr: string) => {
-    const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-    const today = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}-${String(kst.getDate()).padStart(2, '0')}`;
-    return dateStr === today;
   };
 
   return (
@@ -90,7 +90,7 @@ export default function UsageChart() {
           <div className="flex items-end gap-[3px] h-40 mb-1">
             {data.map(({ date, count, uniqueUsers }) => {
               const heightPct = count > 0 ? Math.max((count / maxCount) * 100, 6) : 0;
-              const today = isToday(date);
+              const today = date === todayStr;
               return (
                 <div
                   key={date}
@@ -143,7 +143,7 @@ export default function UsageChart() {
               <div key={date} className="flex-1 text-center">
                 <span
                   className={`text-[9px] font-tech ${
-                    isToday(date) ? 'text-[#f59e0b]' : 'text-gray-600'
+                    date === todayStr ? 'text-[#f59e0b]' : 'text-gray-600'
                   }`}
                 >
                   {formatDate(date)}
@@ -163,7 +163,7 @@ export default function UsageChart() {
               <span>오늘</span>
             </div>
             <div className="ml-auto text-gray-500">
-              기간 내 연인원 {data.reduce((sum, d) => sum + d.uniqueUsers, 0)}명
+              기간 내 연인원 {totalUsers}명
             </div>
           </div>
         </>
