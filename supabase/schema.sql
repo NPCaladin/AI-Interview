@@ -71,6 +71,8 @@ CREATE TABLE usage_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_usage_logs_student_week ON usage_logs(student_id, week_start);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON usage_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_student_id ON usage_logs(student_id);
 
 -- 2. 주간 시작일 계산 헬퍼 (월요일 기준)
 CREATE OR REPLACE FUNCTION current_week_start()

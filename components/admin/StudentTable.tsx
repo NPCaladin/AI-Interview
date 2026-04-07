@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
-import { Search, Pencil, ToggleLeft, ToggleRight, Loader2, RotateCcw, Trash2 } from 'lucide-react';
+import { Search, Pencil, ToggleLeft, ToggleRight, Loader2, RotateCcw, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import StudentFormModal from './StudentFormModal';
 
 interface Student {
@@ -17,11 +17,11 @@ interface Student {
 }
 
 interface StudentTableProps {
-  students: Student[];
   onRefresh: () => void;
 }
 
 type Filter = 'all' | 'active' | 'inactive';
+const PAGE_SIZE = 20;
 
 function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
   return (
@@ -37,42 +37,83 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
   );
 }
 
-export default function StudentTable({ students, onRefresh }: StudentTableProps) {
+export default function StudentTable({ onRefresh }: StudentTableProps) {
   const { authHeaders } = useAdminAuth();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [isLoading, setIsLoading] = useState(true);
   const [editStudent, setEditStudent] = useState<Student | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const filtered = useMemo(() => {
-    const searchLower = search.toLowerCase();
-    return students.filter((s) => {
-      const matchesSearch =
-        s.code.toLowerCase().includes(searchLower) ||
-        s.name.toLowerCase().includes(searchLower);
-      const matchesFilter =
-        filter === 'all' || (filter === 'active' ? s.is_active : !s.is_active);
-      return matchesSearch && matchesFilter;
-    });
-  }, [students, search, filter]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // 서버에서 학생 목록 조회
+  const fetchStudents = useCallback(async (p: number, s: string, f: Filter) => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(p),
+        limit: String(PAGE_SIZE),
+        ...(s && { search: s }),
+        ...(f !== 'all' && { filter: f }),
+      });
+      const res = await fetch(`/api/admin/students?${params}`, { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setStudents(data.students || []);
+        setTotal(data.total || 0);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoading(false);
+    }
+  }, [authHeaders]);
+
+  // 페이지/필터 변경 시 즉시 조회
+  useEffect(() => {
+    fetchStudents(page, search, filter);
+  }, [page, filter, fetchStudents]); // search는 debounce로 처리
+
+  // 검색어 변경 시 300ms 디바운스
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setPage(1);
+      fetchStudents(1, value, filter);
+    }, 300);
+  };
+
+  // 필터 변경
+  const handleFilterChange = (f: Filter) => {
+    setFilter(f);
+    setPage(1);
+  };
+
+  // 새로고침 (외부에서 호출 + 내부 갱신)
+  const refresh = useCallback(() => {
+    fetchStudents(page, search, filter);
+    onRefresh();
+  }, [fetchStudents, page, search, filter, onRefresh]);
 
   const handleToggle = async (student: Student) => {
     if (togglingId) return;
     setTogglingId(student.id);
-
     try {
       const response = await fetch('/api/admin/students', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ id: student.id, is_active: !student.is_active }),
       });
-
-      if (response.ok) {
-        onRefresh();
-      }
+      if (response.ok) refresh();
     } catch {
       // ignore
     } finally {
@@ -93,11 +134,10 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({ id: student.id }),
           });
-          if (response.ok) onRefresh();
+          if (response.ok) refresh();
         } catch { /* ignore */ } finally { setResettingId(null); }
       },
     });
-    return;
   };
 
   const handleDelete = async (student: Student) => {
@@ -113,11 +153,10 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({ id: student.id }),
           });
-          if (response.ok) onRefresh();
+          if (response.ok) refresh();
         } catch { /* ignore */ } finally { setDeletingId(null); }
       },
     });
-    return;
   };
 
   const formatDate = (iso: string) => {
@@ -140,7 +179,7 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="코드 또는 이름 검색..."
             className="w-full pl-9 pr-4 py-2.5 bg-dark-700/80 border border-dark-500 rounded-xl text-sm text-white placeholder:text-gray-500 focus:border-[#00F2FF]/60 focus:outline-none transition-colors"
           />
@@ -149,7 +188,7 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
           {filterButtons.map((btn) => (
             <button
               key={btn.value}
-              onClick={() => setFilter(btn.value)}
+              onClick={() => handleFilterChange(btn.value)}
               className={`px-4 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 ${
                 filter === btn.value
                   ? 'bg-[#00F2FF]/20 text-[#00F2FF] border border-[#00F2FF]/40'
@@ -180,14 +219,20 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} className="text-center py-12">
+                    <Loader2 className="w-5 h-5 text-[#00F2FF] animate-spin mx-auto" />
+                  </td>
+                </tr>
+              ) : students.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="text-center py-12 text-gray-500 text-sm">
                     {search || filter !== 'all' ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}
                   </td>
                 </tr>
               ) : (
-                filtered.map((student) => (
+                students.map((student) => (
                   <tr
                     key={student.id}
                     className="border-b border-white/5 hover:bg-white/3 transition-colors"
@@ -223,7 +268,6 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
                     <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(student.created_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
-                        {/* 수정 버튼 */}
                         <button
                           onClick={() => setEditStudent(student)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-[#00F2FF] hover:bg-[#00F2FF]/10 transition-colors"
@@ -231,8 +275,6 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-
-                        {/* 활성/비활성 토글 */}
                         <button
                           onClick={() => handleToggle(student)}
                           disabled={togglingId === student.id}
@@ -255,7 +297,6 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
-                        {/* 사용량 리셋 */}
                         <button
                           onClick={() => handleReset(student)}
                           disabled={!!resettingId || student.weekly_usage === 0}
@@ -268,8 +309,6 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
                             <RotateCcw className="w-3.5 h-3.5" />
                           )}
                         </button>
-
-                        {/* 삭제 */}
                         <button
                           onClick={() => handleDelete(student)}
                           disabled={!!deletingId}
@@ -291,13 +330,33 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
           </table>
         </div>
 
-        {/* 카운트 */}
-        {filtered.length > 0 && (
-          <div className="px-4 py-2 border-t border-white/5 text-xs text-gray-500">
-            {filtered.length}명 표시
-            {search || filter !== 'all' ? ` (전체 ${students.length}명)` : ''}
-          </div>
-        )}
+        {/* 페이지네이션 */}
+        <div className="px-4 py-3 border-t border-white/5 flex items-center justify-between">
+          <span className="text-xs text-gray-500">
+            전체 {total}명{search || filter !== 'all' ? ' (필터 적용)' : ''}
+          </span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || isLoading}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs text-gray-400 px-2 tabular-nums">
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || isLoading}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 수정 모달 */}
@@ -305,7 +364,7 @@ export default function StudentTable({ students, onRefresh }: StudentTableProps)
         <StudentFormModal
           student={editStudent}
           onClose={() => setEditStudent(null)}
-          onSuccess={onRefresh}
+          onSuccess={refresh}
         />
       )}
 

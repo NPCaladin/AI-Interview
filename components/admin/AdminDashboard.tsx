@@ -16,66 +16,42 @@ interface Stats {
   weeklyActiveUsers: number;
 }
 
-interface Student {
-  id: string;
-  code: string;
-  name: string;
-  weekly_limit: number;
-  is_active: boolean;
-  created_at: string;
-  weekly_usage: number;
-  total_usage: number;
-}
-
 export default function AdminDashboard() {
   const { authHeaders, logout } = useAdminAuth();
   const [stats, setStats] = useState<Stats | null>(null);
-  const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [logsRefreshKey, setLogsRefreshKey] = useState(0);
+  // UsageChart/RecentLogs는 stats 로드 후 마운트 (초기 요청 분산)
+  const [showCharts, setShowCharts] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchStats = useCallback(async () => {
     try {
-      const headers = authHeaders();
-      const [statsRes, studentsRes] = await Promise.all([
-        fetch('/api/admin/stats', { headers }),
-        fetch('/api/admin/students', { headers }),
-      ]);
-
-      if (statsRes.status === 401 || studentsRes.status === 401) {
-        logout();
-        return;
-      }
-
-      if (!statsRes.ok || !studentsRes.ok) {
-        setError('데이터 조회에 실패했습니다.');
-        return;
-      }
-
-      const [statsData, studentsData] = await Promise.all([
-        statsRes.json(),
-        studentsRes.json(),
-      ]);
-
-      setStats(statsData);
-      setStudents(studentsData.students || []);
+      const res = await fetch('/api/admin/stats', { headers: authHeaders() });
+      if (res.status === 401) { logout(); return; }
+      if (!res.ok) { setError('통계 조회에 실패했습니다.'); return; }
+      const data = await res.json();
+      setStats(data);
       setError('');
     } catch {
       setError('네트워크 오류가 발생했습니다.');
     }
   }, [authHeaders, logout]);
 
+  // 초기 로드: stats만 먼저 → 완료 후 차트/로그 마운트
   useEffect(() => {
     setIsLoading(true);
-    fetchData().finally(() => setIsLoading(false));
-  }, [fetchData]);
+    fetchStats().finally(() => {
+      setIsLoading(false);
+      setShowCharts(true);
+    });
+  }, [fetchStats]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchData();
+    await fetchStats();
     setLogsRefreshKey((k) => k + 1);
     setIsRefreshing(false);
   };
@@ -134,17 +110,19 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* 이용 현황 */}
-        <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <UsageChart />
+        {/* 이용 현황 (지연 마운트) */}
+        {showCharts && (
+          <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <UsageChart />
+            </div>
+            <div>
+              <RecentLogs refreshKey={logsRefreshKey} />
+            </div>
           </div>
-          <div>
-            <RecentLogs refreshKey={logsRefreshKey} />
-          </div>
-        </div>
+        )}
 
-        {/* 학생 목록 */}
+        {/* 학생 목록 (자체 데이터 관리 + 서버 페이지네이션) */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-white">학생 목록</h2>
@@ -164,7 +142,7 @@ export default function AdminDashboard() {
             </button>
           </div>
 
-          <StudentTable students={students} onRefresh={handleRefresh} />
+          <StudentTable onRefresh={handleRefresh} />
         </div>
       </div>
 

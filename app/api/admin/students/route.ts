@@ -4,48 +4,74 @@ import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/admin/students — 학생 목록 + 이번 주 사용량
-export async function GET() {
+// GET /api/admin/students — 학생 목록 (서버 페이지네이션 + 검색 + 필터)
+export async function GET(request: NextRequest) {
   try {
-    // 학생 전체 조회
-    const { data: students, error: studentsError } = await supabase
+    const { searchParams } = request.nextUrl;
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')));
+    const search = (searchParams.get('search') || '').trim();
+    const filter = searchParams.get('filter') || 'all'; // all | active | inactive
+    const offset = (page - 1) * limit;
+
+    // 쿼리 빌더
+    let query = supabase
       .from('students')
-      .select('id, code, name, weekly_limit, is_active, created_at')
-      .order('created_at', { ascending: false });
+      .select('id, code, name, weekly_limit, is_active, created_at', { count: 'exact' });
+
+    // 필터
+    if (filter === 'active') query = query.eq('is_active', true);
+    else if (filter === 'inactive') query = query.eq('is_active', false);
+
+    // 검색 (code 또는 name)
+    if (search) {
+      query = query.or(`code.ilike.%${search}%,name.ilike.%${search}%`);
+    }
+
+    // 정렬 + 페이지네이션
+    query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+
+    const { data: students, error: studentsError, count } = await query;
 
     if (studentsError) {
       logger.error('[Admin Students GET] Students query error:', studentsError);
       return NextResponse.json({ error: '학생 목록 조회 실패' }, { status: 500 });
     }
 
-    // 이번 주 시작일 계산 (월요일 기준)
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=일, 1=월...
-    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - daysFromMonday);
-    weekStart.setHours(0, 0, 0, 0);
+    // 현재 페이지 학생들의 usage만 조회
+    const studentIds = (students || []).map((s: { id: string }) => s.id);
 
-    // 최소 컬럼만 조회 (student_id, created_at만 — 1회 쿼리)
-    const { data: allLogs, error: usageError } = await supabase
-      .from('usage_logs')
-      .select('student_id, created_at');
+    let weeklyMap = new Map<string, number>();
+    let totalMap = new Map<string, number>();
 
-    if (usageError) {
-      logger.error('[Admin Students GET] Usage query error:', usageError);
-    }
+    if (studentIds.length > 0) {
+      // 이번 주 시작일 계산 (월요일 기준)
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - daysFromMonday);
+      weekStart.setHours(0, 0, 0, 0);
+      const weekStartTime = weekStart.getTime();
 
-    // 주간 / 누적 집계 (date 비교 최소화: weekStart 타임스탬프 한 번만 계산)
-    const weeklyMap = new Map<string, number>();
-    const totalMap = new Map<string, number>();
-    const weekStartTime = weekStart.getTime();
-    const logs = allLogs || [];
-    for (let i = 0; i < logs.length; i++) {
-      const log = logs[i] as { student_id: string; created_at: string };
-      const sid = log.student_id;
-      totalMap.set(sid, (totalMap.get(sid) || 0) + 1);
-      if (Date.parse(log.created_at) >= weekStartTime) {
-        weeklyMap.set(sid, (weeklyMap.get(sid) || 0) + 1);
+      // 현재 페이지 학생의 로그만 조회
+      const { data: logs, error: usageError } = await supabase
+        .from('usage_logs')
+        .select('student_id, created_at')
+        .in('student_id', studentIds);
+
+      if (usageError) {
+        logger.error('[Admin Students GET] Usage query error:', usageError);
+      }
+
+      const logRows = logs || [];
+      for (let i = 0; i < logRows.length; i++) {
+        const log = logRows[i] as { student_id: string; created_at: string };
+        const sid = log.student_id;
+        totalMap.set(sid, (totalMap.get(sid) || 0) + 1);
+        if (Date.parse(log.created_at) >= weekStartTime) {
+          weeklyMap.set(sid, (weeklyMap.get(sid) || 0) + 1);
+        }
       }
     }
 
@@ -62,7 +88,12 @@ export async function GET() {
       total_usage: totalMap.get(s.id) || 0,
     }));
 
-    return NextResponse.json({ students: result });
+    return NextResponse.json({
+      students: result,
+      total: count || 0,
+      page,
+      limit,
+    });
   } catch (error) {
     logger.error('[Admin Students GET] Error:', error);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
@@ -140,7 +171,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '학생 ID가 필요합니다.' }, { status: 400 });
     }
 
-    // students 삭제 (usage_logs는 ON DELETE CASCADE로 자동 삭제)
     const { error } = await supabase
       .from('students')
       .delete()
