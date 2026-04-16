@@ -51,4 +51,5 @@ nul
 면접테스트*.txt
 *.png
 !public/*.png
+*.bak
 
