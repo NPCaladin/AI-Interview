@@ -474,6 +474,34 @@ export async function runErpPull(params: RunErpPullParams = {}): Promise<RunErpP
       logger.warn(`[ERP Sync][DEBUG] rpc exception:`, (e as Error).message);
     }
 
+    // [DEBUG 2026-04-22] env 지문 + 테이블 카운트 — Vercel이 같은 DB/같은 행 보는지 증명
+    try {
+      const url = process.env.SUPABASE_URL || '';
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+      const urlHost = url.replace(/^https?:\/\//, '').split('.')[0];
+      const keyHint = key.length > 10
+        ? `${key.slice(0, 14)}...${key.slice(-4)} (len=${key.length})`
+        : `short (len=${key.length})`;
+      const { count: stateCount } = await supabase
+        .from('erp_sync_state')
+        .select('*', { count: 'exact', head: true });
+      const { count: runsCount } = await supabase
+        .from('erp_sync_runs')
+        .select('*', { count: 'exact', head: true });
+      const { count: studentsCount } = await supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true });
+      logger.warn(`[ERP Sync][DEBUG] env + table counts:`, {
+        url_host_prefix: urlHost,
+        service_key_hint: keyHint,
+        erp_sync_state_rows: stateCount,
+        erp_sync_runs_rows: runsCount,
+        students_rows: studentsCount,
+      });
+    } catch (e) {
+      logger.warn(`[ERP Sync][DEBUG] env exception:`, (e as Error).message);
+    }
+
     // [DEBUG 2026-04-22] delta 동작 이상 진단용 — state/URL 실제 값 노출
     logger.warn(`[ERP Sync][DEBUG] state raw:`, {
       state_last_updated_at: state?.last_updated_at,
