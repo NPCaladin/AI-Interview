@@ -121,8 +121,8 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedCode = code.trim().toUpperCase();
-    if (!/^[A-Z0-9\-]{2,30}$/.test(normalizedCode)) {
-      return NextResponse.json({ error: '코드는 영문 대문자·숫자·하이픈, 2~30자여야 합니다.' }, { status: 400 });
+    if (!/^[A-Z0-9]{3,20}$/.test(normalizedCode)) {
+      return NextResponse.json({ error: '코드는 영문 대문자·숫자, 3~20자여야 합니다.' }, { status: 400 });
     }
 
     const trimmedName = name.trim();

@@ -25,7 +25,8 @@ function getSecretKey(): Uint8Array {
 }
 
 // ── 경로 설정 ──
-const PUBLIC_PATHS = ['/api/auth/verify', '/api/admin/auth'];
+// /api/cron/* : Vercel Cron (Bearer CRON_SECRET) — middleware JWT 건너뜀
+const PUBLIC_PATHS = ['/api/auth/verify', '/api/admin/auth', '/api/cron/'];
 
 // Rate limit 설정
 const AUTH_LIMIT = { max: 10, window: 60_000 };       // 인증: 10회/분 (IP 기반)

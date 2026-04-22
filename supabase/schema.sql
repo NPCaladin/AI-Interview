@@ -161,3 +161,77 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql;
+
+-- =============================================
+-- ERP 학생 정보 연동 (2026-04-22 추가)
+-- docs/ERP_연동_합의서_최종.md / supabase/migrations/erp_sync.sql
+-- =============================================
+
+-- students ALTER: ERP 소스 표시 + ERP updated_at 미러링
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='students' AND column_name='source'
+  ) THEN
+    ALTER TABLE students ADD COLUMN source TEXT
+      CHECK (source IN ('legacy','manual','erp_migration','erp_sync'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='students' AND column_name='updated_at'
+  ) THEN
+    ALTER TABLE students ADD COLUMN updated_at TIMESTAMPTZ NULL;
+  END IF;
+END $$;
+
+-- 재활성화 승인 큐
+CREATE TABLE IF NOT EXISTS pending_reactivations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_code VARCHAR(20) NOT NULL,
+  student_id UUID NULL REFERENCES students(id) ON DELETE SET NULL,
+  source TEXT NOT NULL CHECK (source IN ('case1_new_code','case2_existing_code')),
+  transition_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','approved','rejected','merged')),
+  linked_student_code VARCHAR(20) NULL,
+  reviewed_by TEXT NULL,
+  reviewed_at TIMESTAMPTZ NULL,
+  note TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_pending_reactivations_code_pending
+  ON pending_reactivations(student_code) WHERE status='pending';
+CREATE INDEX IF NOT EXISTS idx_pending_reactivations_status
+  ON pending_reactivations(status);
+CREATE INDEX IF NOT EXISTS idx_pending_reactivations_created_at
+  ON pending_reactivations(created_at DESC);
+
+-- ERP sync 상태 (단일 행)
+CREATE TABLE IF NOT EXISTS erp_sync_state (
+  id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  last_updated_at TIMESTAMPTZ NULL,
+  last_cursor TEXT NULL,
+  last_run_at TIMESTAMPTZ NULL,
+  last_success_at TIMESTAMPTZ NULL,
+  is_running BOOLEAN NOT NULL DEFAULT false,
+  started_at TIMESTAMPTZ NULL
+);
+INSERT INTO erp_sync_state (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- ERP sync 실행 이력
+CREATE TABLE IF NOT EXISTS erp_sync_runs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  started_at TIMESTAMPTZ NOT NULL,
+  finished_at TIMESTAMPTZ NULL,
+  status TEXT NULL CHECK (status IN ('running','success','failed','partial')),
+  pages_fetched INTEGER NOT NULL DEFAULT 0,
+  records_upserted INTEGER NOT NULL DEFAULT 0,
+  records_queued INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT NULL,
+  error_snippet TEXT NULL,
+  dry_run BOOLEAN NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS idx_erp_sync_runs_started_at
+  ON erp_sync_runs(started_at DESC);
