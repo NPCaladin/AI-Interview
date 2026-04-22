@@ -8,6 +8,7 @@ import StudentTable from './StudentTable';
 import StudentFormModal from './StudentFormModal';
 import UsageChart from './UsageChart';
 import RecentLogs from './RecentLogs';
+import ErpStatusBar from './ErpStatusBar';
 
 interface Stats {
   totalStudents: number;
@@ -104,6 +105,12 @@ export default function AdminDashboard() {
             <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
+
+        {/* ERP 상태 바 (동기화 상태 + 재활성화 대기) */}
+        <div className="mb-6">
+          <ErpStatusBar />
+        </div>
+
 
         {/* 통계 카드 */}
         {stats && (
