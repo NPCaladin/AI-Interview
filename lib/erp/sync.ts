@@ -463,11 +463,23 @@ export async function runErpPull(params: RunErpPullParams = {}): Promise<RunErpP
     // cursor 가 있으면 updated_after 무시, 없으면 updated_after 사용
     let updatedAfter: string | undefined = cursor ? undefined : startUpdatedAfter;
 
+    // [DEBUG 2026-04-22] Codex 제안 진단 RPC 호출 — Vercel 실제 DB role 확인
+    try {
+      const { data: ctx, error: ctxErr } = await supabase.rpc('debug_request_context');
+      logger.warn(`[ERP Sync][DEBUG] request context:`, {
+        rpc_result: ctx,
+        rpc_error: ctxErr,
+      });
+    } catch (e) {
+      logger.warn(`[ERP Sync][DEBUG] rpc exception:`, (e as Error).message);
+    }
+
     // [DEBUG 2026-04-22] delta 동작 이상 진단용 — state/URL 실제 값 노출
     logger.warn(`[ERP Sync][DEBUG] state raw:`, {
       state_last_updated_at: state?.last_updated_at,
       state_last_cursor: state?.last_cursor,
       state_type_last_updated_at: typeof state?.last_updated_at,
+      state_full: JSON.stringify(state),
       initialUpdatedAfter,
       computed_startUpdatedAfter: startUpdatedAfter,
       computed_updatedAfter: updatedAfter,
