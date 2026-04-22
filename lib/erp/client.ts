@@ -77,15 +77,7 @@ function buildUrl(params: ErpFetchParams): string {
   } else if (params.updatedAfter) {
     url.searchParams.set('updated_after', params.updatedAfter);
   }
-  const finalUrl = url.toString();
-  // [DEBUG 2026-04-22] delta 이상 진단용
-  logger.warn(`[ERP Client][DEBUG] buildUrl:`, {
-    input_cursor: params.cursor,
-    input_updatedAfter: params.updatedAfter,
-    input_limit: params.limit,
-    final_url: finalUrl,
-  });
-  return finalUrl;
+  return url.toString();
 }
 
 /**
@@ -167,13 +159,6 @@ export async function fetchErpStudents(params: ErpFetchParams): Promise<ErpFetch
         throw new ErpFetchError('ERP 응답 형식 오류: students 배열 누락', 'PARSE', res.status);
       }
       const nextCursor = typeof rec.next_cursor === 'string' ? rec.next_cursor : null;
-
-      // [DEBUG 2026-04-22] 응답 카운트 로깅
-      logger.warn(`[ERP Client][DEBUG] response:`, {
-        records_count: students.length,
-        has_next_cursor: !!nextCursor,
-        http_status: res.status,
-      });
 
       return {
         students: students as ErpFetchResponse['students'],
