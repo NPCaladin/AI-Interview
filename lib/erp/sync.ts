@@ -340,26 +340,42 @@ async function applyBuckets(
     }
   }
 
-  // ── 3. existingReactivation: case2 큐만 적재 (students 변경 금지)
-  // 개별 insert — batch 는 한 건 conflict 시 전체 롤백되므로 금지
+  // ── 3. existingReactivation: case2 큐 적재 + students name/updated_at 만 갱신
+  //    (is_active 는 그대로 false 유지 — admin 승인 전까지 활성화 금지)
+  //    개별 insert — batch 는 한 건 conflict 시 전체 롤백되므로 금지
   if (buckets.existingReactivation.length > 0) {
     if (!dryRun) {
       for (const x of buckets.existingReactivation) {
+        // 큐 적재
         const row = {
           student_code: x.payload.student_code,
           student_id: x.existing.id,
           source: 'case2_existing_code' as const,
           transition_at: x.payload.updated_at,
         };
-        const { error } = await supabase.from('pending_reactivations').insert(row);
-        if (!error) {
+        const { error: qErr } = await supabase.from('pending_reactivations').insert(row);
+        if (!qErr) {
           queued += 1;
-        } else if (error.code !== '23505') {
-          errors.push(`case2 queue ${row.student_code}: ${error.message}`);
+        } else if (qErr.code !== '23505') {
+          errors.push(`case2 queue ${row.student_code}: ${qErr.message}`);
+        }
+        // students name/updated_at 동기화 (is_active 는 건드리지 않음)
+        const { error: uErr } = await supabase
+          .from('students')
+          .update({
+            name: x.payload.name,
+            updated_at: x.payload.updated_at,
+          })
+          .eq('id', x.existing.id);
+        if (uErr) {
+          errors.push(`reactivation update ${x.existing.code}: ${uErr.message}`);
+        } else {
+          upserted += 1;
         }
       }
     } else {
       queued += buckets.existingReactivation.length;
+      upserted += buckets.existingReactivation.length;
     }
   }
 
