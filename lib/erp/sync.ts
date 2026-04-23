@@ -291,23 +291,21 @@ async function applyBuckets(
           upserted += chunk.length;
         }
       }
-      // 큐 적재 (중복은 부분 유니크 인덱스가 차단 → onConflict 무시)
+      // 큐 적재 — 개별 insert (batch 는 한 건 conflict 시 전체 롤백되므로 금지)
       const queueRows = buckets.newActive.map(p => ({
         student_code: p.student_code,
         student_id: null,
         source: 'case1_new_code' as const,
         transition_at: p.updated_at,
       }));
-      for (let i = 0; i < queueRows.length; i += BATCH_SIZE) {
-        const chunk = queueRows.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.from('pending_reactivations').insert(chunk);
-        if (error) {
-          // 23505 (unique violation) 은 이미 pending 인 경우 → 무시
-          if (error.code !== '23505') {
-            errors.push(`case1 queue chunk ${i / BATCH_SIZE}: ${error.message}`);
-          }
+      for (const row of queueRows) {
+        const { error } = await supabase.from('pending_reactivations').insert(row);
+        if (!error) {
+          queued += 1;
+        } else if (error.code !== '23505') {
+          // 23505 (unique violation) = 이미 pending → 무시
+          errors.push(`case1 queue ${row.student_code}: ${error.message}`);
         }
-        queued += chunk.length;
       }
     } else {
       upserted += buckets.newActive.length;
@@ -343,21 +341,22 @@ async function applyBuckets(
   }
 
   // ── 3. existingReactivation: case2 큐만 적재 (students 변경 금지)
+  // 개별 insert — batch 는 한 건 conflict 시 전체 롤백되므로 금지
   if (buckets.existingReactivation.length > 0) {
     if (!dryRun) {
-      const queueRows = buckets.existingReactivation.map(x => ({
-        student_code: x.payload.student_code,
-        student_id: x.existing.id,
-        source: 'case2_existing_code' as const,
-        transition_at: x.payload.updated_at,
-      }));
-      for (let i = 0; i < queueRows.length; i += BATCH_SIZE) {
-        const chunk = queueRows.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.from('pending_reactivations').insert(chunk);
-        if (error && error.code !== '23505') {
-          errors.push(`case2 queue chunk ${i / BATCH_SIZE}: ${error.message}`);
+      for (const x of buckets.existingReactivation) {
+        const row = {
+          student_code: x.payload.student_code,
+          student_id: x.existing.id,
+          source: 'case2_existing_code' as const,
+          transition_at: x.payload.updated_at,
+        };
+        const { error } = await supabase.from('pending_reactivations').insert(row);
+        if (!error) {
+          queued += 1;
+        } else if (error.code !== '23505') {
+          errors.push(`case2 queue ${row.student_code}: ${error.message}`);
         }
-        queued += chunk.length;
       }
     } else {
       queued += buckets.existingReactivation.length;
