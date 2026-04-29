@@ -17,7 +17,7 @@
 |---|---|---|
 | `ERP_BASE_URL` | Y | 현재 `https://erp-lilac-three.vercel.app` (stable alias). 향후 `erp.evenigame.com` 복구 시 교체 |
 | `ERP_API_KEY` | Y | ERP가 발급한 Bearer 토큰 (테스트→운영 전환 예정) |
-| `ERP_VERCEL_BYPASS_TOKEN` | Y* | Vercel Deployment Protection 우회 헤더 (`x-vercel-protection-bypass`). ERP 공식 도메인 + Protection 해제 시 제거 가능 |
+| ~~`ERP_VERCEL_BYPASS_TOKEN`~~ | — | v1.2 폐기. Standard Protection 정책상 production alias는 public이라 불필요 (2026-04-29 TC-07(b) 검증 결과) |
 | `ERP_DRY_RUN` | Y | 초기 검증 시 `true`, 운영 전환 시 `false` |
 | `CRON_SECRET` | Y | Vercel Cron 진입 인증 (32자+ 권장) |
 | `ERP_INITIAL_UPDATED_AFTER` | N | 기본 `2020-01-01T00:00:00+09:00` |
@@ -191,19 +191,18 @@ SELECT last_cursor, last_updated_at FROM erp_sync_state WHERE id=1;
 
 ---
 
-### TC-07. 인증 실패 (401) — Bearer / Bypass 둘 다
+### TC-07. 인증 실패 (401) — Bearer
 
-**Given**
-- (a) `ERP_API_KEY`가 잘못 설정, 또는
-- (b) `ERP_VERCEL_BYPASS_TOKEN` 누락 (Vercel SSO 벽에 막힘)
+**Given**: `ERP_API_KEY`가 잘못 설정 또는 누락
 
 **When**: pull 실행
 
 **Then**
-- (a): ERP 애플리케이션이 401 응답, error_snippet에 ERP 에러 JSON
-- (b): Vercel 프록시가 401 응답, error_snippet에 Vercel HTML 로그인 페이지 fragment
-- 두 경우 모두 **재시도 없이 즉시 실패**
+- ERP 애플리케이션이 `HTTP 401` + `{"error":"Unauthorized"}` JSON 응답
+- **재시도 없이 즉시 실패**
 - `erp_sync_runs`에 `status='failed', error_code='401'`
+
+**검증 결과 (2026-04-29)**: Bearer 누락 / WRONG 키 모두 401 + JSON 응답 ✅. v1.1에서 정의했던 (b) bypass 누락 시나리오는 v1.2에서 폐기 — Vercel Standard Protection 정책상 production alias는 public이라 bypass 헤더 자체가 불필요.
 - `erp_sync_state.is_running=false`로 해제
 - admin SyncStatusPanel에 실패 표시
 

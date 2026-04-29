@@ -2,8 +2,6 @@
  * ERP REST Pull 클라이언트
  * - 엔드포인트: GET {ERP_BASE_URL}/api/external/interview/students
  * - 인증: Bearer {ERP_API_KEY}
- * - Vercel Deployment Protection 우회 (옵션): x-vercel-protection-bypass: {ERP_VERCEL_BYPASS_TOKEN}
- *   ERP가 Vercel Preview Protection을 사용 중일 때만 필요. env가 없으면 헤더 미전송.
  * - 타임아웃: 10s (AbortController)
  * - 재시도: 지수 백오프 1→2→4s (최대 3회), 5xx/timeout만
  * - 4xx 즉시 실패 (재시도 금지)
@@ -45,10 +43,9 @@ export class ErpFetchError extends Error {
   }
 }
 
-function getConfig(): { baseUrl: string; apiKey: string; bypassToken?: string } {
+function getConfig(): { baseUrl: string; apiKey: string } {
   const baseUrl = process.env.ERP_BASE_URL;
   const apiKey = process.env.ERP_API_KEY;
-  const bypassToken = process.env.ERP_VERCEL_BYPASS_TOKEN;
   if (!baseUrl || !apiKey) {
     const missing = [
       !baseUrl && 'ERP_BASE_URL',
@@ -62,7 +59,6 @@ function getConfig(): { baseUrl: string; apiKey: string; bypassToken?: string } 
   return {
     baseUrl: baseUrl.replace(/\/$/, ''),
     apiKey,
-    bypassToken: bypassToken || undefined,
   };
 }
 
@@ -84,7 +80,7 @@ function buildUrl(params: ErpFetchParams): string {
  * ERP 학생 리스트 1페이지 조회 (재시도 포함)
  */
 export async function fetchErpStudents(params: ErpFetchParams): Promise<ErpFetchResponse> {
-  const { apiKey, bypassToken } = getConfig();
+  const { apiKey } = getConfig();
   const url = buildUrl(params);
 
   const headers: Record<string, string> = {
@@ -92,9 +88,6 @@ export async function fetchErpStudents(params: ErpFetchParams): Promise<ErpFetch
     'Accept': 'application/json',
     'Accept-Encoding': 'gzip',
   };
-  if (bypassToken) {
-    headers['x-vercel-protection-bypass'] = bypassToken;
-  }
 
   let lastError: ErpFetchError | null = null;
 

@@ -89,7 +89,7 @@ function maskName(name) {
   return name.charAt(0) + '*'.repeat(Math.max(1, name.length - 1));
 }
 
-async function fetchPage(baseUrl, apiKey, bypass, cursor, updatedAfter) {
+async function fetchPage(baseUrl, apiKey, cursor, updatedAfter) {
   const url = new URL(baseUrl.replace(/\/$/, '') + '/api/external/interview/students');
   url.searchParams.set('limit', '500');
   if (cursor) url.searchParams.set('cursor', cursor);
@@ -100,7 +100,6 @@ async function fetchPage(baseUrl, apiKey, bypass, cursor, updatedAfter) {
     'Accept': 'application/json',
     'Accept-Encoding': 'gzip',
   };
-  if (bypass) headers['x-vercel-protection-bypass'] = bypass;
 
   const res = await fetch(url.toString(), { headers });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -111,7 +110,6 @@ async function main() {
   loadEnv();
   const baseUrl = process.env.ERP_BASE_URL;
   const apiKey = process.env.ERP_API_KEY;
-  const bypass = process.env.ERP_VERCEL_BYPASS_TOKEN;
   const startAfter = process.env.ERP_INITIAL_UPDATED_AFTER || '2020-01-01T00:00:00+09:00';
 
   if (!baseUrl || !apiKey) throw new Error('ERP_BASE_URL / ERP_API_KEY 필요');
@@ -123,7 +121,7 @@ async function main() {
   const reasonCount = {};
 
   while (page < 20) {
-    const data = await fetchPage(baseUrl, apiKey, bypass, cursor, cursor ? null : startAfter);
+    const data = await fetchPage(baseUrl, apiKey, cursor, cursor ? null : startAfter);
     if (!data || !Array.isArray(data.students)) break;
     totalStudents += data.students.length;
     for (const s of data.students) {

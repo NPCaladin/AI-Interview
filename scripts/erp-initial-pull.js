@@ -67,7 +67,7 @@ function validatePayload(obj) {
   };
 }
 
-async function fetchPage({ baseUrl, apiKey, bypassToken, updatedAfter, cursor, limit = 500 }) {
+async function fetchPage({ baseUrl, apiKey, updatedAfter, cursor, limit = 500 }) {
   const url = new URL(baseUrl.replace(/\/$/, '') + '/api/external/interview/students');
   url.searchParams.set('limit', String(limit));
   if (cursor) url.searchParams.set('cursor', cursor);
@@ -78,7 +78,6 @@ async function fetchPage({ baseUrl, apiKey, bypassToken, updatedAfter, cursor, l
     'Accept': 'application/json',
     'Accept-Encoding': 'gzip',
   };
-  if (bypassToken) headers['x-vercel-protection-bypass'] = bypassToken;
 
   const backoff = [1000, 2000, 4000];
   let lastErr = null;
@@ -139,7 +138,7 @@ async function fetchPage({ baseUrl, apiKey, bypassToken, updatedAfter, cursor, l
   throw lastErr ?? new Error('unknown');
 }
 
-async function runPull({ supabase, baseUrl, apiKey, bypassToken, startUpdatedAfter, dryRun, source, label }) {
+async function runPull({ supabase, baseUrl, apiKey, startUpdatedAfter, dryRun, source, label }) {
   console.log(`\n=== ${label} (dryRun=${dryRun}, source=${source}) ===`);
   let cursor = null;
   let updatedAfter = startUpdatedAfter;
@@ -155,7 +154,7 @@ async function runPull({ supabase, baseUrl, apiKey, bypassToken, startUpdatedAft
   while (pages < MAX_PAGES) {
     let pageRes;
     try {
-      pageRes = await fetchPage({ baseUrl, apiKey, bypassToken, updatedAfter, cursor, limit: 500 });
+      pageRes = await fetchPage({ baseUrl, apiKey, updatedAfter, cursor, limit: 500 });
     } catch (e) {
       errors.push(`page ${pages}: ${e.message}`);
       break;
@@ -301,7 +300,6 @@ async function main() {
 
   const baseUrl = process.env.ERP_BASE_URL;
   const apiKey = process.env.ERP_API_KEY;
-  const bypassToken = process.env.ERP_VERCEL_BYPASS_TOKEN || undefined;
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const initialAfter = process.env.ERP_INITIAL_UPDATED_AFTER || '2020-01-01T00:00:00+09:00';
@@ -323,7 +321,6 @@ async function main() {
         supabase,
         baseUrl,
         apiKey,
-        bypassToken,
         startUpdatedAfter: initialAfter,
         dryRun: true,
         source: 'erp_migration',
@@ -340,7 +337,6 @@ async function main() {
     supabase,
     baseUrl,
     apiKey,
-    bypassToken,
     startUpdatedAfter: initialAfter,
     dryRun: false,
     source: 'erp_migration',

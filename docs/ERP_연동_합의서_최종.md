@@ -68,25 +68,22 @@ GET https://{erp-host}/api/external/interview/students
 #### 필수 헤더
 
 - **Authorization**: `Bearer {ERP_API_KEY}`
-- **x-vercel-protection-bypass**: `{ERP_VERCEL_BYPASS_TOKEN}` — 현 ERP 인프라 한정
 
-#### Vercel Deployment Protection 우회 (v1.1 추가)
+#### Vercel Deployment Protection 정책 (v1.2 갱신)
 
-현재 ERP는 Vercel Deployment Protection(SSO 벽)이 활성 상태라,
-`Authorization` 헤더만 전송 시 Vercel 레벨에서 401 반환됩니다.
+ERP 프로젝트는 Vercel "Standard Protection" 모드:
+- Stable production alias (`erp-lilac-three.vercel.app`, `erp.evenigame.com`)는 **public** — Bearer 단독 인증으로 충분
+- Deployment-specific URL (`erp-{hash}-aladins-projects-...vercel.app`)만 SSO 보호
 
-- 두 번째 헤더 `x-vercel-protection-bypass`에 bypass 토큰을 포함해야
-  Vercel → ERP 애플리케이션 레이어로 요청이 도달합니다
-- 향후 `erp.evenigame.com` DNS/SSL 복구 + Deployment Protection 해제 시
-  이 헤더는 제거 가능 (코드는 `ERP_VERCEL_BYPASS_TOKEN` 환경변수 유무로
-  조건부 전송하므로 env만 unset 하면 됨)
+따라서 운영 호출 표면(stable alias)에서는 `x-vercel-protection-bypass` 헤더가 **불필요**합니다. v1.1 에서 도입한 bypass 헤더 의존은 v1.2 에서 정식 폐기.
 
 #### 키 관리
 
 - 이브니 관리자(= eveni.mkt@gmail.com)가 ERP·면접앱 양측 단독 관리자
-- API_KEY 및 bypass 토큰 모두 면접앱 Vercel 환경변수에 직접 주입
+- API_KEY 면접앱 Vercel 환경변수에 직접 주입 (Bearer 단독 인증)
 - 테스트 키 → 통합 테스트 통과 후 운영 키로 전환 (테스트 키는 즉시 폐기)
 - 운영 중 키 유출 징후 시 즉시 로테이션
+- 권장 회전 주기: 6~12개월 (Bearer 단일 방어이므로)
 
 ### 3-3. 응답 포맷
 
@@ -313,3 +310,4 @@ ERP에서 `is_active=true`로 응답되어도 면접앱이 **자동 활성화하
 |---|---|---|
 | 2026-04-22 | v1.0 | 최초 합의 종결 (면접앱 ↔ ERP 6회 교환 완결) |
 | 2026-04-22 | v1.1 | ERP 엔드포인트 오픈 반영: stable alias URL (`erp-lilac-three.vercel.app`) 확정, Vercel Deployment Protection 우회용 `x-vercel-protection-bypass` 헤더 필수화 (§3-2), 테스트→운영 키 전환 플로우 명시 |
+| 2026-04-29 | v1.2 | TC-07(b) 검증으로 Vercel "Standard Protection" 정책 확인 — production alias는 public이라 bypass 헤더 불필요. 운영 키 전환과 함께 Bearer 단독 인증 정식 채택 (§3-2 갱신). `ERP_VERCEL_BYPASS_TOKEN` env + 헤더 송신 코드 폐기. |
