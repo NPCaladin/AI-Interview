@@ -1,7 +1,7 @@
 /**
  * ERP → 면접앱 students 동기화 코어
  * - 재활성화 절대 자동 반영 금지 (pending_reactivations 큐로만)
- * - is_active true→false 는 즉시 반영
+ * - is_active true→false 는 즉시 반영 (단, students.sync_exempt=true 면 skip)
  * - 신규 is_active=true 는 students 는 is_active=false 로 저장 + 큐 적재(case1)
  * - 15분 stale 판정으로 좀비 run 강제 인수
  * - dry-run 모드: 실제 DB 변경 없이 집계만
@@ -53,6 +53,8 @@ interface ExistingStudent {
   id: string;
   code: string;
   is_active: boolean;
+  // true 면 ERP 의 비활성화 지시를 무시 (면접앱 수동 예외 활성화 유지)
+  sync_exempt: boolean;
 }
 
 /**
@@ -193,7 +195,7 @@ async function loadExistingByCode(codes: string[]): Promise<Map<string, Existing
     const chunk = codes.slice(i, i + CHUNK);
     const { data, error } = await supabase
       .from('students')
-      .select('id, code, is_active')
+      .select('id, code, is_active, sync_exempt')
       .in('code', chunk);
     if (error) {
       logger.error('[ERP Sync] loadExistingByCode error:', error);
@@ -218,6 +220,8 @@ interface PageBuckets {
   existingDeactivation: Array<{ payload: ErpStudentPayload; existing: ExistingStudent }>;
   // 기존 + is_active 동일: name/updated_at만 업데이트
   existingUpdate: Array<{ payload: ErpStudentPayload; existing: ExistingStudent }>;
+  // 기존 + DB active=true & API active=false 이지만 sync_exempt=true: 비활성화 skip (로깅용)
+  existingExemptSkipped: Array<{ payload: ErpStudentPayload; existing: ExistingStudent }>;
 }
 
 function emptyBuckets(): PageBuckets {
@@ -227,6 +231,7 @@ function emptyBuckets(): PageBuckets {
     existingReactivation: [],
     existingDeactivation: [],
     existingUpdate: [],
+    existingExemptSkipped: [],
   };
 }
 
@@ -247,6 +252,10 @@ function bucketPayloads(
     } else if (existing.is_active === false && p.is_active === true) {
       // 재활성화: 큐 적재만
       b.existingReactivation.push({ payload: p, existing });
+    } else if (existing.sync_exempt) {
+      // true → false 이지만 동기화 예외: 비활성화 skip, name/updated_at 만 갱신
+      b.existingExemptSkipped.push({ payload: p, existing });
+      b.existingUpdate.push({ payload: p, existing });
     } else {
       // true → false: 즉시 반영
       b.existingDeactivation.push({ payload: p, existing });
@@ -377,6 +386,14 @@ async function applyBuckets(
       queued += buckets.existingReactivation.length;
       upserted += buckets.existingReactivation.length;
     }
+  }
+
+  // ── 3-1. sync_exempt 로 비활성화를 skip 한 학생 로깅 (name/updated_at 은 existingUpdate 에서 갱신)
+  if (buckets.existingExemptSkipped.length > 0) {
+    logger.warn(
+      '[ERP Sync] sync_exempt 로 비활성화 skip:',
+      buckets.existingExemptSkipped.map((x) => x.existing.code).join(', '),
+    );
   }
 
   // ── 4. existingDeactivation: 즉시 is_active=false (개별 update — updated_at/name 개별 반영)
