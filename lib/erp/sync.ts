@@ -4,6 +4,7 @@
  * - is_active true→false 는 즉시 반영 (단, students.sync_exempt=true 면 skip)
  * - 신규 is_active=true 는 students 는 is_active=false 로 저장 + 큐 적재(case1)
  * - 5분 stale 판정으로 좀비 run 강제 인수 (인수 시 방치된 run 은 failed 로 마감)
+ * - 시간 예산 초과 시 스스로 루프를 중단하고 partial 로 마감 → 다음 실행이 cursor 로 재개
  * - dry-run 모드: 실제 DB 변경 없이 집계만
  *
  * 참조: docs/ERP_연동_합의서_최종.md §5-1, §6-2
@@ -18,10 +19,16 @@ import { validateStudentPayload, type ErpStudentPayload } from '@/lib/erp/valida
 const STALE_RUN_MS = 5 * 60 * 1000;
 const DEFAULT_INITIAL_UPDATED_AFTER = '2020-01-01T00:00:00+09:00';
 const BATCH_SIZE = 500;
+// 1페이지 500건은 행 단위 update 누적으로 Vercel 60s 를 넘긴다 (2026-09-10 실측 504)
+const DEFAULT_PAGE_LIMIT = 100;
+// Vercel maxDuration=60s. 여유를 두고 스스로 중단해 finally(잠금 해제·run 마감)를 반드시 실행시킨다
+const RUN_TIME_BUDGET_MS = 40_000;
 
 export interface RunErpPullParams {
   dryRun?: boolean;
   maxPages?: number;
+  /** ERP 1페이지당 조회 건수(1~500) */
+  pageLimit?: number;
   initialUpdatedAfter?: string;
   source?: 'erp_sync' | 'erp_migration'; // 초기 이관은 'erp_migration'
 }
@@ -481,6 +488,11 @@ async function applyBuckets(
 export async function runErpPull(params: RunErpPullParams = {}): Promise<RunErpPullResult> {
   const dryRun = params.dryRun === true;
   const maxPages = Math.max(1, params.maxPages ?? parseInt(process.env.ERP_MAX_PAGES_PER_RUN || '10'));
+  // 우선순위: params → env → 기본값. client 의 clamp 와 별개로 진입부에서도 1~500 으로 강제
+  const rawPageLimit = params.pageLimit ?? parseInt(process.env.ERP_PAGE_LIMIT || `${DEFAULT_PAGE_LIMIT}`);
+  const pageLimit = Number.isFinite(rawPageLimit)
+    ? Math.min(500, Math.max(1, Math.floor(rawPageLimit)))
+    : DEFAULT_PAGE_LIMIT;
   const source: 'erp_sync' | 'erp_migration' = params.source ?? 'erp_sync';
   const initialUpdatedAfter =
     params.initialUpdatedAfter
@@ -503,6 +515,8 @@ export async function runErpPull(params: RunErpPullParams = {}): Promise<RunErpP
     };
   }
 
+  // 시간 예산 기준점 — 잠금 획득 직후부터 계산
+  const runStartedMs = Date.now();
   let runId: string | null = null;
   let pagesFetched = 0;
   let totalUpserted = 0;
@@ -529,15 +543,27 @@ export async function runErpPull(params: RunErpPullParams = {}): Promise<RunErpP
     logger.info(`[ERP Sync] Start (dryRun=${dryRun}, maxPages=${maxPages}, source=${source})`, {
       cursor: cursor ? 'resume' : null,
       updated_after: updatedAfter,
+      pageLimit,
     });
 
     for (let page = 0; page < maxPages; page++) {
+      // 시간 예산 검사 — 첫 페이지는 무조건 1회 시도하고, 이후 페이지부터 자체 중단
+      const elapsedMs = Date.now() - runStartedMs;
+      if (page > 0 && elapsedMs > RUN_TIME_BUDGET_MS) {
+        if (finalStatus !== 'failed') finalStatus = 'partial';
+        collectedErrors.push('time budget exceeded — 다음 실행에서 cursor 로 재개');
+        logger.warn(
+          `[ERP Sync] Time budget exceeded (elapsed=${elapsedMs}ms, pagesFetched=${pagesFetched}), stopping early`,
+        );
+        break;
+      }
+
       let pageRes;
       try {
         pageRes = await fetchErpStudents({
           updatedAfter,
           cursor: cursor ?? undefined,
-          limit: 500,
+          limit: pageLimit,
         });
       } catch (e) {
         if (e instanceof ErpFetchError) {

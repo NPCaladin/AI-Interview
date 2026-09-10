@@ -1,7 +1,7 @@
 /**
  * ERP 동기화 상태 조회 + 수동 트리거
  * GET  /api/admin/sync-status      -> { state, recentRuns }
- * POST /api/admin/sync-status      body: {dryRun?: boolean, maxPages?: number}
+ * POST /api/admin/sync-status      body: {dryRun?: boolean, maxPages?: number, pageLimit?: number}
  *
  * 권한: middleware 의 admin JWT 검증에 의존
  */
@@ -66,8 +66,12 @@ export async function POST(request: NextRequest) {
       typeof body.maxPages === 'number' && body.maxPages > 0
         ? Math.min(50, Math.floor(body.maxPages))
         : undefined;
+    const pageLimit =
+      typeof body.pageLimit === 'number' && body.pageLimit > 0
+        ? Math.min(500, Math.max(1, Math.floor(body.pageLimit)))
+        : undefined;
 
-    const result = await runErpPull({ dryRun, maxPages });
+    const result = await runErpPull({ dryRun, maxPages, pageLimit });
     return NextResponse.json(result);
   } catch (e) {
     logger.error('[Admin SyncStatus POST] Error:', e);
