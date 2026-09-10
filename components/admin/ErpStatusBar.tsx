@@ -9,7 +9,11 @@ interface SyncState {
   last_success_at: string | null;
   last_run_at: string | null;
   is_running: boolean;
+  started_at: string | null;
 }
+
+// is_running 이 이 시간 이상 지속되면 정상 실행이 아니라 잠금 누수로 간주
+const STUCK_LOCK_MS = 10 * 60_000;
 
 interface Status {
   sync: SyncState | null;
@@ -19,9 +23,17 @@ interface Status {
 
 type Health = 'ok' | 'warn' | 'error' | 'unknown';
 
+/** is_running 이 STUCK_LOCK_MS 이상 지속된 잠금 누수 상태인지 (started_at null 이면 누수로 간주) */
+function isLockStuck(state: SyncState | null): boolean {
+  if (!state || !state.is_running) return false;
+  if (!state.started_at) return true;
+  return Date.now() - new Date(state.started_at).getTime() >= STUCK_LOCK_MS;
+}
+
 function deriveHealth(state: SyncState | null, lastRunStatus: string | null): Health {
   if (!state) return 'unknown';
-  if (state.is_running) return 'ok';
+  // 실행 중이더라도 10분 이상이면 잠금 누수 — 정상으로 은폐하지 않는다
+  if (state.is_running) return isLockStuck(state) ? 'error' : 'ok';
   if (!state.last_success_at) {
     return lastRunStatus === 'failed' ? 'error' : 'unknown';
   }
@@ -29,7 +41,8 @@ function deriveHealth(state: SyncState | null, lastRunStatus: string | null): He
   const H = 3600_000;
   if (successMs > 72 * H) return 'error';
   if (successMs > 48 * H) return 'warn';
-  return 'ok';
+  // 임계값 내라도 마지막 실행이 실패면 최소 '주의' 로 격상
+  return lastRunStatus === 'failed' ? 'warn' : 'ok';
 }
 
 function relativeTime(iso: string | null): string {
@@ -109,12 +122,18 @@ export default function ErpStatusBar() {
   const health = deriveHealth(status.sync, status.lastRunStatus);
   const healthStyle = HEALTH_STYLES[health];
   const pendingCount = status.pendingCount;
+  const lockStuck = isLockStuck(status.sync);
+  // 잠금 누수 시 원인을 칩/툴팁에 그대로 노출 (relativeTime 재사용)
+  const lockStuckText = lockStuck
+    ? `동기화 잠금 ${relativeTime(status.sync?.started_at ?? null)}부터 미해제`
+    : null;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* 동기화 상태 칩 */}
       <Link
         href="/admin/sync"
+        title={lockStuckText ?? undefined}
         className="
           group flex items-center gap-2.5 px-4 py-2.5 rounded-xl
           border border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20
@@ -129,8 +148,12 @@ export default function ErpStatusBar() {
           <span className="text-xs font-medium text-gray-300">ERP 동기화</span>
         </div>
         <span className={`text-xs ${healthStyle.text}`}>{healthStyle.label}</span>
-        <span className="text-xs text-gray-500 font-tech tabular-nums">
-          {status.sync?.is_running ? '실행 중' : relativeTime(status.sync?.last_success_at ?? null)}
+        <span
+          className={`text-xs font-tech tabular-nums ${lockStuckText ? 'text-red-400' : 'text-gray-500'}`}
+          style={{ wordBreak: 'keep-all', overflowWrap: 'break-word' }}
+        >
+          {lockStuckText
+            ?? (status.sync?.is_running ? '실행 중' : relativeTime(status.sync?.last_success_at ?? null))}
         </span>
         <ChevronRight className="w-3.5 h-3.5 text-gray-600 group-hover:text-white transition-colors" />
       </Link>

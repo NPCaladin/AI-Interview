@@ -3,7 +3,7 @@
  * - 재활성화 절대 자동 반영 금지 (pending_reactivations 큐로만)
  * - is_active true→false 는 즉시 반영 (단, students.sync_exempt=true 면 skip)
  * - 신규 is_active=true 는 students 는 is_active=false 로 저장 + 큐 적재(case1)
- * - 15분 stale 판정으로 좀비 run 강제 인수
+ * - 5분 stale 판정으로 좀비 run 강제 인수 (인수 시 방치된 run 은 failed 로 마감)
  * - dry-run 모드: 실제 DB 변경 없이 집계만
  *
  * 참조: docs/ERP_연동_합의서_최종.md §5-1, §6-2
@@ -14,7 +14,8 @@ import { logger } from '@/lib/logger';
 import { fetchErpStudents, ErpFetchError } from '@/lib/erp/client';
 import { validateStudentPayload, type ErpStudentPayload } from '@/lib/erp/validation';
 
-const STALE_RUN_MS = 15 * 60 * 1000;
+// Vercel 함수 maxDuration=60s 이므로 5분이면 정상 실행이 걸릴 수 있는 시간의 충분한 여유값
+const STALE_RUN_MS = 5 * 60 * 1000;
 const DEFAULT_INITIAL_UPDATED_AFTER = '2020-01-01T00:00:00+09:00';
 const BATCH_SIZE = 500;
 
@@ -55,6 +56,34 @@ interface ExistingStudent {
   is_active: boolean;
   // true 면 ERP 의 비활성화 지시를 무시 (면접앱 수동 예외 활성화 유지)
   sync_exempt: boolean;
+}
+
+/**
+ * stale 강제 인수 시, 마감되지 않고 남은 run 들을 failed 로 정리
+ * - finally 블록이 실행되지 못한 회차(status='running' 고착)를 이력상 확정시킨다
+ * - 실패해도 잠금 인수는 계속 진행 (throw 하지 않음)
+ */
+async function abandonStaleRuns(ageMs: number): Promise<void> {
+  try {
+    const { data, error } = await supabase
+      .from('erp_sync_runs')
+      .update({
+        status: 'failed',
+        finished_at: new Date().toISOString(),
+        error_code: 'STALE_ABANDONED',
+        error_snippet: `이전 run 이 마감되지 않아 강제 인수됨 (age=${Math.round(ageMs / 1000)}s)`,
+      })
+      .eq('status', 'running')
+      .select('id');
+
+    if (error) {
+      logger.error('[ERP Sync] abandonStaleRuns error:', error);
+      return;
+    }
+    logger.warn(`[ERP Sync] Abandoned ${(data ?? []).length} stale run(s) as failed`);
+  } catch (e) {
+    logger.error('[ERP Sync] abandonStaleRuns uncaught:', e);
+  }
 }
 
 /**
@@ -99,6 +128,8 @@ async function acquireRunLock(): Promise<{ acquired: true } | { acquired: false;
       };
     }
     logger.warn(`[ERP Sync] Stale run detected (age=${Math.round(age / 1000)}s), forcing takeover`);
+    // 인수 직전 — 마감되지 않은 채 남아있는 run 이력을 failed 로 확정 (stale 경로 전용)
+    await abandonStaleRuns(age);
   }
 
   // 조건부 업데이트 (낙관적 잠금)
@@ -625,17 +656,27 @@ export async function runErpPull(params: RunErpPullParams = {}): Promise<RunErpP
       finalUpdatedAt,
     };
   } finally {
-    // 3) 잠금 해제 + run 마감 (항상)
-    await releaseRunLock();
+    // 3) run 마감 → 잠금 해제 (항상, 각각 독립 try/catch)
+    //    기록 보존이 잠금 해제보다 우선이며, 한쪽이 throw 해도 다른 쪽은 반드시 실행된다.
+    //    finally 에서 예외가 밖으로 나가면 원래 에러가 가려지므로 절대 재throw 하지 않는다.
     if (runId) {
-      await finalizeRun(runId, {
-        status: finalStatus,
-        pages_fetched: pagesFetched,
-        records_upserted: totalUpserted,
-        records_queued: totalQueued,
-        error_code: errorCode,
-        error_snippet: errorSnippet,
-      });
+      try {
+        await finalizeRun(runId, {
+          status: finalStatus,
+          pages_fetched: pagesFetched,
+          records_upserted: totalUpserted,
+          records_queued: totalQueued,
+          error_code: errorCode,
+          error_snippet: errorSnippet,
+        });
+      } catch (e) {
+        logger.error('[ERP Sync] finalizeRun threw in finally:', e);
+      }
+    }
+    try {
+      await releaseRunLock();
+    } catch (e) {
+      logger.error('[ERP Sync] releaseRunLock threw in finally:', e);
     }
   }
 }

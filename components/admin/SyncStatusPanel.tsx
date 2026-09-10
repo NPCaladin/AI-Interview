@@ -49,6 +49,17 @@ function relativeTime(iso: string | null): string {
   return `${day}일 전`;
 }
 
+// is_running 이 이 시간 이상 지속되면 정상 실행이 아니라 잠금 누수로 간주
+const STUCK_LOCK_MS = 10 * 60_000;
+const H = 3600_000;
+
+/** 경과 시간을 '3일' / '30시간' 형태로 (48시간 미만은 시간 단위) */
+function elapsedLabel(ms: number): string {
+  const hr = Math.floor(ms / H);
+  if (hr < 48) return `${hr}시간`;
+  return `${Math.floor(ms / 86400_000)}일`;
+}
+
 function absoluteKst(iso: string | null): string {
   if (!iso) return '-';
   const kst = new Date(new Date(iso).getTime() + 9 * 3600000);
@@ -198,6 +209,18 @@ export default function SyncStatusPanel() {
 
   const isDryRun = lastRun?.dry_run ?? false;
 
+  // ── 동기화 중단 / 잠금 누수 경고 계산
+  const staleMs = state?.last_success_at ? Date.now() - new Date(state.last_success_at).getTime() : null;
+  const isStale = staleMs !== null && staleMs > 48 * H;
+  const isCritical = staleMs !== null && staleMs > 72 * H;
+  const lockStuckMs =
+    state?.is_running
+      ? Date.now() - (state.started_at ? new Date(state.started_at).getTime() : 0)
+      : null;
+  const isLockStuck = lockStuckMs !== null && lockStuckMs >= STUCK_LOCK_MS;
+  const showWarningBanner = isStale || isLockStuck;
+  const bannerAccent = isCritical || isLockStuck ? '#ef4444' : '#f59e0b';
+
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
@@ -230,6 +253,36 @@ export default function SyncStatusPanel() {
           <div className="flex items-center gap-2 p-4 mb-6 bg-red-500/10 border border-red-500/30 rounded-xl">
             <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
             <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* 동기화 중단 / 잠금 누수 경고 배너 */}
+        {showWarningBanner && (
+          <div
+            className="flex items-start gap-3 p-4 mb-6 rounded-xl border"
+            style={{
+              borderColor: `${bannerAccent}55`,
+              background: `${bannerAccent}12`,
+              wordBreak: 'keep-all',
+              overflowWrap: 'break-word',
+            }}
+          >
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: bannerAccent }} />
+            <div className="space-y-1 [text-wrap:pretty]">
+              {isStale && staleMs !== null && (
+                <p className="text-sm font-semibold" style={{ color: bannerAccent }}>
+                  마지막 성공 동기화 이후 {elapsedLabel(staleMs)} 경과 — ERP 동기화가 중단된 상태입니다.
+                </p>
+              )}
+              {isLockStuck && (
+                <p className="text-sm text-red-400">
+                  {state?.started_at
+                    ? `동기화 잠금이 ${elapsedLabel(lockStuckMs ?? 0)}째 해제되지 않았습니다.`
+                    : '동기화 잠금이 해제되지 않았습니다 (시작 시각 기록 없음).'}
+                  {' '}다음 실행이 강제 인수합니다.
+                </p>
+              )}
+            </div>
           </div>
         )}
 
