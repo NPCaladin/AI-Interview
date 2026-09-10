@@ -20,9 +20,12 @@ const STALE_RUN_MS = 5 * 60 * 1000;
 const DEFAULT_INITIAL_UPDATED_AFTER = '2020-01-01T00:00:00+09:00';
 const BATCH_SIZE = 500;
 // 1페이지 500건은 행 단위 update 누적으로 Vercel 60s 를 넘긴다 (2026-09-10 실측 504)
-const DEFAULT_PAGE_LIMIT = 100;
+// 실측 처리속도: 웜 약 0.35s/건(50건 16.5~20.5s), 콜드 약 0.69s/건(50건 34.4s)
+// → 50건이면 콜드에서도 ~34s 로 60s 안쪽. 100건은 콜드에서 ~70s 라 초과한다
+const DEFAULT_PAGE_LIMIT = 50;
 // Vercel maxDuration=60s. 여유를 두고 스스로 중단해 finally(잠금 해제·run 마감)를 반드시 실행시킨다
-const RUN_TIME_BUDGET_MS = 40_000;
+// 20s: 콜드(1페이지 ~34s)면 1페이지에서 멈추고, 웜(1페이지 ~20s)이면 2페이지까지만 처리 (~40s)
+const RUN_TIME_BUDGET_MS = 20_000;
 
 export interface RunErpPullParams {
   dryRun?: boolean;
