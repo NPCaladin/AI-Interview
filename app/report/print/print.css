@@ -1,0 +1,625 @@
+/*
+ * 면접 결과 인쇄 문서 전용 스타일 (/report/print 에서만 import)
+ * 모든 셀렉터는 .rp-* / body.rp-route 프리픽스 — 다른 라우트 침범 금지.
+ */
+
+/* ========== 라우트 셸 ========== */
+body.rp-route {
+  background: #e5e7eb !important;
+  color: #111827;
+  padding-bottom: 0 !important;
+}
+
+/* ========== 문서 기본 ========== */
+.rp-doc {
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  color: #111827;
+  background: #fff;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rp-doc p,
+.rp-doc li,
+.rp-doc td,
+.rp-doc blockquote {
+  text-wrap: pretty;
+}
+
+.rp-doc h1,
+.rp-doc h2,
+.rp-doc h3,
+.rp-doc h4 {
+  text-wrap: balance;
+  margin: 0;
+}
+
+.rp-doc h1 {
+  font-size: 22pt;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.rp-doc h2 {
+  font-size: 15pt;
+  font-weight: 700;
+  line-height: 1.3;
+  padding-bottom: 3pt;
+  border-bottom: 2px solid #4f46e5;
+  margin: 0 0 8pt;
+}
+
+.rp-doc h3 {
+  font-size: 11.5pt;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 10pt 0 4pt;
+}
+
+.rp-doc h4 {
+  font-size: 10pt;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #374151;
+  margin: 0 0 3pt;
+}
+
+.rp-doc p {
+  margin: 0 0 4pt;
+}
+
+.rp-doc ul,
+.rp-doc ol {
+  margin: 0;
+  padding-left: 14pt;
+}
+
+.rp-doc li {
+  margin: 1.5pt 0;
+}
+
+/* ========== 표지 ========== */
+.rp-subtitle {
+  font-size: 12pt;
+  color: #4b5563;
+  margin-top: 2pt !important;
+}
+
+.rp-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4pt 18pt;
+  margin: 10pt 0 8pt;
+  padding: 6pt 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 9.5pt;
+}
+
+.rp-meta > div {
+  display: flex;
+  gap: 5pt;
+}
+
+.rp-meta dt {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.rp-meta dd {
+  margin: 0;
+  color: #111827;
+}
+
+.rp-scorebox {
+  display: flex;
+  align-items: center;
+  gap: 14pt;
+}
+
+.rp-scorebox__total {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.rp-scorebox__num {
+  font-size: 30pt;
+  font-weight: 800;
+  line-height: 1;
+  color: #4f46e5;
+}
+
+.rp-scorebox__unit {
+  font-size: 12pt;
+  font-weight: 600;
+  color: #4b5563;
+  margin-left: 2pt;
+}
+
+.rp-scorebox__body {
+  min-width: 0;
+}
+
+.rp-scorebox__title {
+  margin: 4pt 0 0 !important;
+  font-size: 11pt;
+  font-weight: 600;
+}
+
+/* ========== 카드 ========== */
+.rp-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 6pt;
+  padding: 7pt 9pt;
+  margin: 6pt 0;
+  background: #fff;
+}
+
+.rp-card--good {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.rp-card--warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.rp-card--muted {
+  background: #f9fafb;
+}
+
+.rp-card--model {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.rp-card > h3:first-child {
+  margin-top: 0;
+}
+
+/* ========== 레이아웃 ========== */
+.rp-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6pt;
+  margin: 6pt 0;
+}
+
+.rp-two-col > .rp-card {
+  margin: 0;
+}
+
+.rp-cover-top {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 10pt;
+  align-items: center;
+}
+
+.rp-cover-top > .rp-scorebox {
+  align-self: stretch;
+  display: flex;
+}
+
+.rp-cover-grid {
+  margin-top: 8pt;
+}
+
+.rp-figure {
+  margin: 0;
+  width: 320px;
+}
+
+.rp-star__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5pt;
+}
+
+.rp-star__cell {
+  border: 1px solid #e5e7eb;
+  border-radius: 4pt;
+  padding: 4pt 6pt;
+  background: #fff;
+  font-size: 9.5pt;
+}
+
+.rp-star__label {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  margin-bottom: 2pt;
+}
+
+.rp-star__found {
+  font-style: italic;
+  color: #4b5563;
+}
+
+.rp-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6pt;
+}
+
+.rp-tile {
+  text-align: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 4pt;
+  padding: 5pt 4pt;
+  background: #f9fafb;
+}
+
+.rp-tile__score {
+  font-size: 16pt;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.rp-tile__label {
+  font-size: 8.5pt;
+  color: #4b5563;
+}
+
+/* ========== 배지 · 톤 ========== */
+.rp-badge {
+  display: inline-block;
+  padding: 1pt 6pt;
+  border-radius: 999pt;
+  font-size: 8.5pt;
+  font-weight: 700;
+  line-height: 1.4;
+  border: 1px solid currentColor;
+}
+
+.rp-tone--high {
+  color: #15803d;
+}
+
+.rp-tone--mid {
+  color: #4338ca;
+}
+
+.rp-tone--low {
+  color: #b45309;
+}
+
+.rp-tone--poor {
+  color: #b91c1c;
+}
+
+.rp-badge--pass {
+  color: #15803d;
+  background: #dcfce7;
+}
+
+.rp-badge--hold {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.rp-badge--fail {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.rp-badge--q {
+  color: #fff;
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+
+/* ========== 막대 ========== */
+.rp-bar {
+  height: 6pt;
+  background: #e5e7eb;
+  border-radius: 999pt;
+  overflow: hidden;
+  min-width: 50pt;
+}
+
+.rp-bar__fill {
+  height: 100%;
+  border-radius: 999pt;
+}
+
+.rp-bar__fill--high {
+  background: #15803d;
+}
+
+.rp-bar__fill--mid {
+  background: #4338ca;
+}
+
+.rp-bar__fill--low {
+  background: #b45309;
+}
+
+.rp-bar__fill--poor {
+  background: #b91c1c;
+}
+
+/* ========== 표 ========== */
+.rp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+}
+
+.rp-table th,
+.rp-table td {
+  padding: 4pt 6pt;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: top;
+}
+
+.rp-table thead th {
+  background: #f3f4f6;
+  font-weight: 700;
+  color: #374151;
+}
+
+.rp-table__label {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.rp-table__score {
+  font-weight: 700;
+  text-align: right;
+}
+
+.rp-table__bar {
+  width: 90pt;
+  vertical-align: middle !important;
+}
+
+.rp-table__reason {
+  font-size: 9pt;
+  color: #4b5563;
+}
+
+/* ========== 질문 블록 ========== */
+.rp-q {
+  margin: 0 0 14pt;
+  padding-top: 4pt;
+}
+
+.rp-q__meta {
+  display: flex;
+  align-items: center;
+  gap: 5pt;
+  margin-bottom: 3pt;
+}
+
+.rp-q__type {
+  font-size: 8.5pt;
+  color: #4b5563;
+  padding: 1pt 5pt;
+  border-radius: 3pt;
+  background: #f3f4f6;
+}
+
+.rp-q__head > h3 {
+  margin-top: 2pt;
+}
+
+/* ========== 텍스트 요소 ========== */
+.rp-checklist {
+  list-style: none;
+  padding-left: 0 !important;
+}
+
+.rp-checklist li::before {
+  content: '☐ ';
+}
+
+.rp-quote {
+  margin: 4pt 0;
+  padding: 2pt 0 2pt 8pt;
+  border-left: 3px solid #d1d5db;
+  font-size: 9.5pt;
+  color: #374151;
+}
+
+.rp-pre {
+  white-space: pre-wrap;
+}
+
+.rp-bw__question {
+  font-weight: 600;
+}
+
+.rp-rewrite {
+  margin-top: 5pt;
+  padding-top: 5pt;
+  border-top: 1px dashed #fcd34d;
+}
+
+.rp-tips li {
+  margin: 2pt 0;
+}
+
+/* ========== 대화 기록 ========== */
+.rp-msg {
+  break-inside: avoid;
+  margin: 0 0 6pt;
+}
+
+.rp-msg__role {
+  display: inline-block;
+  font-size: 8.5pt;
+  font-weight: 700;
+  color: #4f46e5;
+  margin-bottom: 1pt;
+}
+
+.rp-msg--user .rp-msg__role {
+  color: #15803d;
+}
+
+/* ========== 레거시 마크다운 ========== */
+.rp-md h1 {
+  font-size: 15pt;
+  margin: 10pt 0 4pt;
+}
+
+.rp-md h2 {
+  font-size: 13pt;
+  border-bottom: none;
+  padding-bottom: 0;
+  margin: 10pt 0 4pt;
+}
+
+.rp-md h3 {
+  font-size: 11.5pt;
+}
+
+/* ========== 바닥글 ========== */
+.rp-footer {
+  margin-top: 16pt;
+  padding-top: 4pt;
+  border-top: 1px solid #e5e7eb;
+  font-size: 7.5pt;
+  color: #6b7280;
+}
+
+/* ========== 차트 ========== */
+.rp-doc .recharts-wrapper {
+  font-family: inherit;
+}
+
+.rp-doc .recharts-surface {
+  overflow: visible;
+}
+
+/* ========== 화면 미리보기 ========== */
+@media screen {
+  .rp-screen {
+    min-height: 100vh;
+    padding: 16px 12px 48px;
+  }
+
+  .rp-doc {
+    width: 210mm;
+    max-width: 100%;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 14mm 12mm;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .rp-break-before {
+    margin-top: 18pt;
+  }
+}
+
+/* ========== 인쇄 ========== */
+@page {
+  size: A4;
+  margin: 14mm 12mm 16mm;
+}
+
+@media print {
+  html:has(body.rp-route),
+  body.rp-route {
+    background: #fff !important;
+    margin: 0;
+    padding: 0;
+    min-height: 0;
+  }
+
+  .rp-screen {
+    padding: 0;
+  }
+
+  .rp-doc {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0 0 8mm;
+    box-shadow: none;
+  }
+
+  body.rp-route .rp-toolbar,
+  body.rp-route [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  /* 하우스 인쇄 규칙 */
+  .rp-doc h1,
+  .rp-doc h2,
+  .rp-doc h3,
+  .rp-doc h4 {
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  .rp-doc h3 + p,
+  .rp-doc h3 + table {
+    break-before: avoid;
+  }
+
+  .rp-doc p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  .rp-doc thead {
+    display: table-header-group;
+  }
+
+  .rp-doc tr,
+  .rp-doc figure,
+  .rp-doc .rp-card {
+    break-inside: avoid;
+  }
+
+  /* 구조 */
+  .rp-break-before {
+    break-before: page;
+  }
+
+  .rp-q__head {
+    break-inside: avoid;
+  }
+
+  .rp-two-col,
+  .rp-star__grid,
+  .rp-cover-top,
+  .rp-cover-grid {
+    break-inside: avoid;
+  }
+
+  .rp-q {
+    margin-bottom: 10pt;
+  }
+
+  .rp-doc a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* 러닝 바닥글: 크로미움은 position:fixed 요소를 매 페이지 반복 출력 */
+  .rp-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 6mm;
+    line-height: 6mm;
+    margin: 0;
+    padding: 0;
+    font-size: 7.5pt;
+    color: #6b7280;
+    border-top: 1px solid #e5e7eb;
+    background: #fff;
+  }
+}

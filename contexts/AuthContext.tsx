@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { clearReportPrintPayload } from '@/lib/reportPrint';
 
 interface Student {
   id: string;
@@ -99,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // sessionStorage 접근 실패 시 무시
     }
+    clearReportPrintPayload();
   }, []);
 
   const authHeaders = useCallback((): Record<string, string> => {

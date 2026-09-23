@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
-import { Download, Trophy, Target, Zap, TrendingUp, MessageSquare, ChevronUp, FileText, RefreshCw, CheckCircle2, AlertTriangle, Star, Loader2 } from 'lucide-react';
+import { Download, Trophy, Target, Zap, TrendingUp, MessageSquare, ChevronUp, FileText, RefreshCw, CheckCircle2, AlertTriangle, Star } from 'lucide-react';
 import type { GameInterviewReport, StreamingReportState, PremiumFeedbackItem } from '@/lib/types';
 import { SCORE_LABELS } from '@/lib/constants';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { formatScore, computeStarSummary } from '@/lib/reportUtils';
+import { saveReportPrintPayload, buildPrintUrl, type ReportPrintPayload } from '@/lib/reportPrint';
 
 // ========================================
 // 경과 시간 타이머
@@ -328,15 +331,14 @@ export default function ReportView({
   streaming,
   analysisStartTime,
 }: ReportViewProps) {
-  const reportRef = useRef<HTMLDivElement>(null);
+  const { student } = useAuth();
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
 
   // 스트리밍 중일 때 빈 리포트 처리
   const isStreaming = streaming?.isStreaming || false;
 
   // 리포트 데이터 추출 (null 안전 처리)
-  const total_score = report?.total_score || 0;
+  const total_score = formatScore(report?.total_score);
   const pass_prediction = report?.pass_prediction || '';
   const summary_title = report?.summary_title || '';
   const scores = report?.scores || { job_fit: 0, logic: 0, game_sense: 0, attitude: 0, communication: 0 };
@@ -347,7 +349,8 @@ export default function ReportView({
   const overall_summary = report?.overall_summary;
   const best_answer_analysis = report?.best_answer_analysis;
   const worst_answer_analysis = report?.worst_answer_analysis;
-  const star_analysis = report?.star_analysis;
+  // STAR 요약: 서버 규칙 분석기 값 대신 질문별 STAR(Q6 이후 경험형) 평균
+  const star_summary = computeStarSummary(detailed_feedback);
 
   // 스크롤 이벤트
   useEffect(() => {
@@ -362,7 +365,7 @@ export default function ReportView({
   let statusColor = 'from-red-500 to-red-600';
   let statusBg = 'bg-red-500/10 border-red-500/30';
   let statusText = 'text-red-400';
-  if (pass_prediction?.includes('합격') && !pass_prediction?.includes('보류')) {
+  if (pass_prediction?.includes('합격') && !pass_prediction?.includes('불합격') && !pass_prediction?.includes('보류')) {
     statusColor = 'from-neon-green to-emerald-500';
     statusBg = 'bg-neon-green/10 border-neon-green/30';
     statusText = 'text-neon-green';
@@ -469,55 +472,27 @@ export default function ReportView({
     onDownload?.();
   };
 
-  // PDF 다운로드
-  const handleDownloadPdf = async () => {
-    if (!reportRef.current || isDownloading) return;
-    setIsDownloading(true);
-
-    try {
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#0f0f0f',
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= 297;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= 297;
-      }
-
-      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      pdf.save(`면접결과_${selectedCompany.replace(/[()/]/g, '_')}_${dateStr}.pdf`);
-    } catch (err) {
-      console.error('PDF 생성 오류:', err);
-      toast.error('PDF 생성 중 오류가 발생했습니다. TXT 다운로드를 이용해주세요.');
-    } finally {
-      setIsDownloading(false);
+  // PDF: 인쇄 전용 라우트로 페이로드 전달 후 새 탭 (window.open까지 동기 — 팝업 차단 회피)
+  const handleOpenPrint = () => {
+    if (!report) { toast.error('분석이 완료된 후 PDF를 저장할 수 있습니다.'); return; }
+    const payload: ReportPrintPayload = {
+      version: 1,
+      report,
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      selectedJob,
+      selectedCompany,
+      student: student ? { name: student.name, code: student.code } : null,
+      generatedAt: new Date().toISOString(),
+      totalQuestions: streaming?.totalQuestions ?? messages.filter(m => m.role === 'assistant').length,
+    };
+    if (!saveReportPrintPayload(payload)) {
+      toast.error('브라우저 저장 공간 문제로 PDF 미리보기를 열 수 없습니다. TXT 다운로드를 이용해주세요.');
+      return;
     }
+    const url = buildPrintUrl({ auto: true });
+    const win = window.open(url, '_blank');
+    if (!win) toast.error('팝업이 차단되었습니다.', { action: { label: '리포트 열기', onClick: () => window.open(url, '_blank') } });
+    onDownload?.();
   };
 
   return (
@@ -525,7 +500,7 @@ export default function ReportView({
       {/* 스트리밍 배너 */}
       {streaming && <StreamingBanner streaming={streaming} onRetry={onRetryAnalysis} onCancel={onCancelAnalysis} startTime={analysisStartTime} />}
 
-      <div ref={reportRef}>
+      <div>
         {/* 헤더 */}
         <div className="mb-6 md:mb-8 flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -546,12 +521,12 @@ export default function ReportView({
               TXT
             </button>
             <button
-              onClick={handleDownloadPdf}
-              disabled={isDownloading}
+              onClick={handleOpenPrint}
+              disabled={!report || streaming?.isStreaming}
               className="btn-gaming px-3 py-2 md:px-4 rounded-lg flex items-center gap-1.5 md:gap-2 text-xs md:text-sm disabled:opacity-50"
             >
-              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {isDownloading ? '생성중...' : 'PDF'}
+              <Download className="w-4 h-4" />
+              PDF
             </button>
           </div>
         </div>
@@ -655,18 +630,21 @@ export default function ReportView({
         </div>
 
         {/* STAR 분석 요약 */}
-        {star_analysis && (
+        {star_summary && (
           <div className="mb-8 glass-card-dark rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-gray-200 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-gray-200 mb-1 flex items-center gap-2">
               <Star className="w-5 h-5 text-yellow-400" />
               STAR 구조 분석 요약
             </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              분석 대상 {star_summary.count}개 답변 (Q6 이후 경험형 질문 기준)
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
               {[
-                { key: 'situation', label: 'Situation (상황)', score: star_analysis.situation },
-                { key: 'task', label: 'Task (역할)', score: star_analysis.task },
-                { key: 'action', label: 'Action (행동)', score: star_analysis.action },
-                { key: 'result', label: 'Result (결과)', score: star_analysis.result },
+                { key: 'situation', label: 'Situation (상황)', score: star_summary.situation },
+                { key: 'task', label: 'Task (역할)', score: star_summary.task },
+                { key: 'action', label: 'Action (행동)', score: star_summary.action },
+                { key: 'result', label: 'Result (결과)', score: star_summary.result },
               ].map(item => (
                 <div key={item.key} className="text-center p-4 bg-dark-700/50 rounded-lg">
                   <div className="text-2xl font-bold gradient-text mb-1">{item.score}</div>
