@@ -19,12 +19,11 @@ import { validateStudentPayload, type ErpStudentPayload } from '@/lib/erp/valida
 const STALE_RUN_MS = 5 * 60 * 1000;
 const DEFAULT_INITIAL_UPDATED_AFTER = '2020-01-01T00:00:00+09:00';
 const BATCH_SIZE = 500;
-// 1페이지 500건은 행 단위 update 누적으로 Vercel 60s 를 넘긴다 (2026-09-10 실측 504)
-// 실측 처리속도: 웜 약 0.35s/건(50건 16.5~20.5s), 콜드 약 0.69s/건(50건 34.4s)
-// → 50건이면 콜드에서도 ~34s 로 60s 안쪽. 100건은 콜드에서 ~70s 라 초과한다
+// 기존 행도 청크 upsert 로 처리 → 페이지당 DB 왕복은 상수 수준 (조회 1 + upsert ≤4 + 큐 insert n)
+// (2026-09-22·23 행 단위 update 50회 왕복으로 60s 타임아웃 → 벌크화)
 const DEFAULT_PAGE_LIMIT = 50;
 // Vercel maxDuration=60s. 여유를 두고 스스로 중단해 finally(잠금 해제·run 마감)를 반드시 실행시킨다
-// 20s: 콜드(1페이지 ~34s)면 1페이지에서 멈추고, 웜(1페이지 ~20s)이면 2페이지까지만 처리 (~40s)
+// 20s 를 넘긴 시점부터 다음 페이지를 열지 않는다 (첫 페이지는 무조건 1회). 벌크화 후 1페이지는 수 초 수준
 const RUN_TIME_BUDGET_MS = 20_000;
 
 export interface RunErpPullParams {
@@ -306,6 +305,43 @@ function bucketPayloads(
 }
 
 /**
+ * students 부분 upsert 행 — code 기준 충돌 시 제공한 컬럼만 갱신된다
+ * (기본값 없는 NOT NULL 은 code·name 뿐이므로 부분 upsert 가 안전)
+ */
+interface StudentUpsertRow {
+  code: string;
+  name: string;
+  updated_at: string;
+  is_active?: boolean;
+  weekly_limit?: number;
+  source?: 'erp_sync' | 'erp_migration';
+}
+
+/**
+ * students 를 BATCH_SIZE 청크로 upsert(onConflict: code). 실패 청크는 errors 에 기록
+ * @returns 성공한 행 수
+ */
+async function upsertStudentsInChunks(
+  rows: StudentUpsertRow[],
+  label: string,
+  errors: string[],
+): Promise<number> {
+  let succeeded = 0;
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const chunk = rows.slice(i, i + BATCH_SIZE);
+    const { error } = await supabase
+      .from('students')
+      .upsert(chunk, { onConflict: 'code', ignoreDuplicates: false });
+    if (error) {
+      errors.push(`${label} upsert chunk ${i / BATCH_SIZE}: ${error.message}`);
+    } else {
+      succeeded += chunk.length;
+    }
+  }
+  return succeeded;
+}
+
+/**
  * 실제 DB 반영 (dry-run 시 no-op)
  */
 async function applyBuckets(
@@ -322,7 +358,7 @@ async function applyBuckets(
   // ── 1. newActive: students insert (is_active=false) + case1 큐
   if (buckets.newActive.length > 0) {
     if (!dryRun) {
-      const rows = buckets.newActive.map(p => ({
+      const rows: StudentUpsertRow[] = buckets.newActive.map(p => ({
         code: p.student_code,
         name: p.name,
         is_active: false, // 재활성화 승인 대기
@@ -330,17 +366,7 @@ async function applyBuckets(
         source,
         updated_at: p.updated_at,
       }));
-      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const chunk = rows.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase
-          .from('students')
-          .upsert(chunk, { onConflict: 'code', ignoreDuplicates: false });
-        if (error) {
-          errors.push(`newActive upsert chunk ${i / BATCH_SIZE}: ${error.message}`);
-        } else {
-          upserted += chunk.length;
-        }
-      }
+      upserted += await upsertStudentsInChunks(rows, 'newActive', errors);
       // 큐 적재 — 개별 insert (batch 는 한 건 conflict 시 전체 롤백되므로 금지)
       const queueRows = buckets.newActive.map(p => ({
         student_code: p.student_code,
@@ -366,7 +392,7 @@ async function applyBuckets(
   // ── 2. newInactive: students insert (is_active=false)
   if (buckets.newInactive.length > 0) {
     if (!dryRun) {
-      const rows = buckets.newInactive.map(p => ({
+      const rows: StudentUpsertRow[] = buckets.newInactive.map(p => ({
         code: p.student_code,
         name: p.name,
         is_active: false,
@@ -374,29 +400,18 @@ async function applyBuckets(
         source,
         updated_at: p.updated_at,
       }));
-      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const chunk = rows.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase
-          .from('students')
-          .upsert(chunk, { onConflict: 'code', ignoreDuplicates: false });
-        if (error) {
-          errors.push(`newInactive upsert chunk ${i / BATCH_SIZE}: ${error.message}`);
-        } else {
-          upserted += chunk.length;
-        }
-      }
+      upserted += await upsertStudentsInChunks(rows, 'newInactive', errors);
     } else {
       upserted += buckets.newInactive.length;
     }
   }
 
-  // ── 3. existingReactivation: case2 큐 적재 + students name/updated_at 만 갱신
+  // ── 3. existingReactivation: case2 큐 적재 (students name/updated_at 갱신은 5단계 touch 에 합류)
   //    (is_active 는 그대로 false 유지 — admin 승인 전까지 활성화 금지)
   //    개별 insert — batch 는 한 건 conflict 시 전체 롤백되므로 금지
   if (buckets.existingReactivation.length > 0) {
     if (!dryRun) {
       for (const x of buckets.existingReactivation) {
-        // 큐 적재
         const row = {
           student_code: x.payload.student_code,
           student_id: x.existing.id,
@@ -408,19 +423,6 @@ async function applyBuckets(
           queued += 1;
         } else if (qErr.code !== '23505') {
           errors.push(`case2 queue ${row.student_code}: ${qErr.message}`);
-        }
-        // students name/updated_at 동기화 (is_active 는 건드리지 않음)
-        const { error: uErr } = await supabase
-          .from('students')
-          .update({
-            name: x.payload.name,
-            updated_at: x.payload.updated_at,
-          })
-          .eq('id', x.existing.id);
-        if (uErr) {
-          errors.push(`reactivation update ${x.existing.code}: ${uErr.message}`);
-        } else {
-          upserted += 1;
         }
       }
     } else {
@@ -437,49 +439,39 @@ async function applyBuckets(
     );
   }
 
-  // ── 4. existingDeactivation: 즉시 is_active=false (개별 update — updated_at/name 개별 반영)
+  // ── 4. existingDeactivation: 즉시 is_active=false (청크 upsert — name/updated_at 함께 반영)
   if (buckets.existingDeactivation.length > 0) {
     if (!dryRun) {
-      for (const x of buckets.existingDeactivation) {
-        const { error } = await supabase
-          .from('students')
-          .update({
-            is_active: false,
-            updated_at: x.payload.updated_at,
-            name: x.payload.name,
-          })
-          .eq('id', x.existing.id);
-        if (error) {
-          errors.push(`deactivate ${x.existing.code}: ${error.message}`);
-        } else {
-          deactivated += 1;
-        }
-      }
+      const rows: StudentUpsertRow[] = buckets.existingDeactivation.map(x => ({
+        code: x.existing.code,
+        name: x.payload.name,
+        is_active: false,
+        updated_at: x.payload.updated_at,
+      }));
+      deactivated += await upsertStudentsInChunks(rows, 'deactivate', errors);
     } else {
       deactivated += buckets.existingDeactivation.length;
     }
   }
 
-  // ── 5. existingUpdate: name / updated_at 갱신
-  if (buckets.existingUpdate.length > 0) {
-    if (!dryRun) {
-      for (const x of buckets.existingUpdate) {
-        const { error } = await supabase
-          .from('students')
-          .update({
-            name: x.payload.name,
-            updated_at: x.payload.updated_at,
-          })
-          .eq('id', x.existing.id);
-        if (error) {
-          errors.push(`update ${x.existing.code}: ${error.message}`);
-        } else {
-          upserted += 1;
-        }
-      }
-    } else {
-      upserted += buckets.existingUpdate.length;
+  // ── 5. touch: existingReactivation + existingUpdate 의 name / updated_at 갱신 (청크 upsert)
+  //    is_active·weekly_limit·source·sync_exempt 는 절대 포함하지 않는다 (admin 승인·예외 플래그 보존)
+  if (!dryRun) {
+    const touchByCode = new Map<string, StudentUpsertRow>();
+    const touchSources = [...buckets.existingReactivation, ...buckets.existingUpdate];
+    for (const x of touchSources) {
+      // 버킷은 상호 배타적이라 중복은 없어야 하지만 방어적으로 dedupe (뒤에 온 것이 이김)
+      touchByCode.set(x.existing.code, {
+        code: x.existing.code,
+        name: x.payload.name,
+        updated_at: x.payload.updated_at,
+      });
     }
+    if (touchByCode.size > 0) {
+      upserted += await upsertStudentsInChunks(Array.from(touchByCode.values()), 'touch', errors);
+    }
+  } else {
+    upserted += buckets.existingUpdate.length;
   }
 
   return { upserted, queued, deactivated, errors };
@@ -561,6 +553,8 @@ export async function runErpPull(params: RunErpPullParams = {}): Promise<RunErpP
         break;
       }
 
+      // 페이지 처리(fetch~apply) 소요시간 관측용
+      const pageStartedMs = Date.now();
       let pageRes;
       try {
         pageRes = await fetchErpStudents({
@@ -611,6 +605,10 @@ export async function runErpPull(params: RunErpPullParams = {}): Promise<RunErpP
 
         const buckets = bucketPayloads(validPayloads, existingMap);
         const applied = await applyBuckets(buckets, { dryRun, source });
+        const pageElapsedMs = Date.now() - pageStartedMs;
+        if (pageElapsedMs > 15_000) {
+          logger.warn('[ERP Sync] Slow page', { page, rows: validPayloads.length, elapsedMs: pageElapsedMs });
+        }
         totalUpserted += applied.upserted;
         totalQueued += applied.queued;
         totalDeactivated += applied.deactivated;
