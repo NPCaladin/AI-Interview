@@ -56,6 +56,35 @@ export function computeStarSummary(items: PremiumFeedbackItem[]): StarSummary | 
   };
 }
 
+/**
+ * LLM 점수를 0~100 정수로 정규화.
+ * 프롬프트가 0~100을 지시해도 간혹 10점 만점(2~9)으로 오므로, 1~10 정수는 ×10 으로 보정한다.
+ * (2026-09-24 프로덕션 실측: 질문별 score 8/9/8/4/2 → 배지·톤 판정 전부 '부족'으로 표시되던 문제)
+ */
+export function normalizeScore100(n: unknown): number {
+  const v = typeof n === 'number' ? n : Number(n);
+  if (!Number.isFinite(v)) return 0;
+  const scaled = v > 0 && v <= 10 && Number.isInteger(v) ? v * 10 : v;
+  return Math.max(0, Math.min(100, Math.round(scaled)));
+}
+
+/** 질문별 피드백 항목의 score / STAR 4항목 score 를 0~100 으로 정규화 (불변 반환) */
+export function normalizeFeedbackItemScores(item: PremiumFeedbackItem): PremiumFeedbackItem {
+  const star = item.star_analysis;
+  return {
+    ...item,
+    score: normalizeScore100(item.score),
+    star_analysis: star
+      ? {
+          situation: { ...star.situation, score: normalizeScore100(star.situation?.score) },
+          task: { ...star.task, score: normalizeScore100(star.task?.score) },
+          action: { ...star.action, score: normalizeScore100(star.action?.score) },
+          result: { ...star.result, score: normalizeScore100(star.result?.score) },
+        }
+      : star,
+  };
+}
+
 export type ScoreTone = 'high' | 'mid' | 'low' | 'poor';
 
 /** 점수 톤 (ReportView 기준과 동일) */

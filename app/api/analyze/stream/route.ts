@@ -5,7 +5,8 @@ export const maxDuration = 300; // Vercel 최대 실행 시간 5분 (Pro 이상)
 import { logger } from '@/lib/logger';
 import { SUMMARY_ANALYSIS_PROMPT, DETAIL_ANALYSIS_PROMPT, chunkQuestionNumbers, tagConversation } from '@/lib/prompts-stream';
 import { analyzeMultipleAnswers } from '@/lib/starAnalyzer';
-import type { SSEEventType } from '@/lib/types';
+import type { SSEEventType, PremiumFeedbackItem } from '@/lib/types';
+import { normalizeFeedbackItemScores } from '@/lib/reportUtils';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -214,7 +215,8 @@ ${taggedConversation}
 
                   if (Array.isArray(feedbackArray) && feedbackArray.length > 0) {
                     logger.debug(`[분석] 청크 ${chunkIndex} 성공: ${feedbackArray.length}개 질문 분석됨`);
-                    return feedbackArray;
+                    // 점수 척도 안전망: 10점 만점으로 온 score 를 0~100 으로 정규화
+                    return (feedbackArray as PremiumFeedbackItem[]).map(normalizeFeedbackItemScores);
                   } else {
                     logger.warn(`[분석] 청크 ${chunkIndex} 응답에 피드백 배열 없음, 재시도 ${retryCount + 1}/${maxRetries}`);
                     retryCount++;

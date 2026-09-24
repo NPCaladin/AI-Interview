@@ -123,6 +123,7 @@ ${selectedCompany ? `## 지원 회사: ${selectedCompany}` : ''}
 2. 각 항목을 충분히 상세하게 작성하세요 (토큰 제한 걱정 없음)
 3. 반드시 유효한 JSON만 반환하세요
 4. total_score는 5개 역량 점수의 가중 평균으로 계산하세요
+5. 모든 score(total_score, scores, scores_detail, best/worst_answer_analysis)는 0~100 정수 척도
 `;
 
 // ========================================
@@ -156,6 +157,15 @@ ${questionNumbers.map(n => `- Q${n}`).join('\n')}
 분석 대상 질문 번호가 위 단계 중 어디에 해당하는지 판단하여 적합한 기준을 적용하세요.
 Q1~Q5는 star_analysis의 각 항목을 해당 없으면 "해당 없음 (자기소개/동기 단계)" 으로 표시하고 feedback에 명확성/논리/진정성 위주로 서술하세요.
 
+## 점수 척도 (필수 — 10점 만점 금지)
+모든 "score" 값(질문 점수, STAR 4항목 점수)은 **0~100 사이의 정수**입니다. 종합 평가와 같은 척도를 씁니다.
+- ${SCORE_BANDS.excellent.min}-${SCORE_BANDS.excellent.max}점: ${SCORE_BANDS.excellent.label}
+- ${SCORE_BANDS.good.min}-${SCORE_BANDS.good.max}점: ${SCORE_BANDS.good.label}
+- ${SCORE_BANDS.average.min}-${SCORE_BANDS.average.max}점: ${SCORE_BANDS.average.label}
+- ${SCORE_BANDS.below.min}-${SCORE_BANDS.below.max}점: ${SCORE_BANDS.below.label}
+- ${SCORE_BANDS.poor.min}-${SCORE_BANDS.poor.max}점: ${SCORE_BANDS.poor.label}
+- STAR 항목이 "해당 없음"이면 score는 0
+
 ## 평가 기준
 ### STAR 분석 (직무 역량 검증 단계 Q6~Q9에만 적용)
 - S (상황): 구체적인 시간, 장소, 배경 설명
@@ -173,7 +183,7 @@ Q1~Q5는 star_analysis의 각 항목을 해당 없으면 "해당 없음 (자기�
       "question": "면접관의 질문 전문",
       "question_type": "경험형" | "상황형",
       "answer_summary": "답변의 핵심 포인트 요약 (100-150자)",
-      "score": number,
+      "score": number,  // 0~100 정수 (예: 72). 10점 만점 아님
 
       "star_analysis": {
         "situation": {
@@ -227,6 +237,7 @@ Q1~Q5는 star_analysis의 각 항목을 해당 없으면 "해당 없음 (자기�
 3. question 필드는 대화 로그에서 해당 Q번호의 면접관 질문을 그대로 복사
 4. 절대 지어내지 말고, 지원자가 실제로 한 말만 인용하세요
 5. 반드시 유효한 JSON만 반환하세요 (마지막에 쉼표 없이!)
+6. 모든 score는 0~100 정수 — 8점, 9점 같은 10점 만점 표기는 금지 (80, 90처럼 작성)
 `;
 
 // ========================================
