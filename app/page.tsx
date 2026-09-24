@@ -36,7 +36,7 @@ export default function Home() {
     questionCount, currentPhase, setResumeText,
     startInterview, sendMessage, handleAudioInput: interviewAudioInput,
     reset: interviewReset, canAnalyze,
-    timeoutModalType, handleTimeoutContinue, handleTimeoutEnd,
+    timeoutModalType, handleTimeoutContinue, endInterview,
   } = useInterview({ sttModel, updateAudioUrl, clearAudioUrl });
 
   const {
@@ -79,20 +79,20 @@ export default function Home() {
 
   const handleAnalyze = useCallback(async () => {
     clearAudioUrl(); // 재생 중인 면접관 음성 즉시 정지
+    endInterview(); // 면접 종료 확정 — 무응답 타이머가 분석 화면까지 살아남지 않도록
     try {
       await startAnalysis();
     } catch (error) {
       const msg = error instanceof Error ? error.message : '면접 분석에 실패했습니다.';
       toast.error(msg);
     }
-  }, [clearAudioUrl, startAnalysis]);
+  }, [clearAudioUrl, endInterview, startAnalysis]);
 
   // 타임아웃 모달 "지금 분석하기": 면접 종료 + 즉시 분석 시작
   const handleTimeoutAnalyze = useCallback(() => {
     clearAudioUrl(); // 재생 중인 면접관 음성 즉시 정지
-    handleTimeoutEnd();
-    handleAnalyze();
-  }, [clearAudioUrl, handleTimeoutEnd, handleAnalyze]);
+    handleAnalyze(); // 내부에서 endInterview() 호출
+  }, [clearAudioUrl, handleAnalyze]);
 
   const handleReset = useCallback(() => {
     interviewReset();
@@ -132,8 +132,8 @@ export default function Home() {
       {/* 숨겨진 오디오 태그 */}
       <audio ref={audioRef} src={audioUrl || undefined} />
 
-      {/* 무응답 타임아웃 모달 */}
-      {timeoutModalType && (
+      {/* 무응답 타임아웃 모달 — 면접 진행 중에만 (리포트 화면 노출 방지 이중 방어) */}
+      {isInterviewStarted && timeoutModalType && (
         <TimeoutModal
           type={timeoutModalType}
           onContinue={handleTimeoutContinue}

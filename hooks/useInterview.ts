@@ -74,12 +74,19 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
     startInactivityTimer();
   }, [startInactivityTimer]);
 
-  // 모달 "지금 분석하기" — 면접 종료 (분석 버튼은 사용자가 직접 클릭)
-  const handleTimeoutEnd = useCallback(() => {
+  // 면접 종료 — 무응답 타이머 정리 + 상태 종료
+  // ("종료 후 분석" 버튼, 타임아웃 모달 "지금 분석하기" 공용)
+  const endInterview = useCallback(() => {
     clearInactivityTimer();
     setIsInterviewStarted(false);
     setIsLoading(false);
   }, [clearInactivityTimer]);
+
+  // 안전망: 어떤 경로로든 면접이 종료되면(분석 완료 포함) 무응답 타이머·모달을 정리
+  // (2026-09-24 분석 완료 화면 위에 "무응답 4분 경과" 모달이 뜨던 문제)
+  useEffect(() => {
+    if (!isInterviewStarted) clearInactivityTimer();
+  }, [isInterviewStarted, clearInactivityTimer]);
 
   // 타임아웃 + AbortController가 적용된 fetch (auth 헤더 자동 주입)
   const fetchWithTimeout = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
@@ -496,6 +503,6 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
     canAnalyze,
     timeoutModalType,
     handleTimeoutContinue,
-    handleTimeoutEnd,
+    endInterview,
   };
 }
