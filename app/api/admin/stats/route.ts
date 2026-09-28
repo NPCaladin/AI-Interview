@@ -6,13 +6,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // 이번 주 시작일 계산 (월요일 기준)
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=일, 1=월...
-    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - daysFromMonday);
-    weekStart.setHours(0, 0, 0, 0);
+    // 이번 주 시작일 (KST 월요일, DB current_week_start() 와 동일 기준)
+    const { data: weekStartData, error: weekStartError } = await supabase.rpc('current_week_start');
+    if (weekStartError || typeof weekStartData !== 'string') {
+      logger.error('[Admin Stats] current_week_start error:', weekStartError);
+      return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+    }
+    const weekStart: string = weekStartData;
 
     // 총 학생 수
     const { count: totalStudents, error: totalError } = await supabase
@@ -37,7 +37,7 @@ export async function GET() {
     const { data: weeklyLogs, error: weeklyError } = await supabase
       .from('usage_logs')
       .select('student_id')
-      .gte('created_at', weekStart.toISOString());
+      .eq('week_start', weekStart);
 
     if (weeklyError) {
       logger.error('[Admin Stats] Weekly usage error:', weeklyError);

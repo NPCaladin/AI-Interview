@@ -522,11 +522,6 @@ body.rp-route {
 }
 
 /* ========== 인쇄 ========== */
-@page {
-  size: A4;
-  margin: 14mm 12mm 16mm;
-}
-
 @media print {
   html:has(body.rp-route),
   body.rp-route {

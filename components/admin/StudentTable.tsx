@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { adminFetch } from '@/lib/adminFetch';
-import { Search, Pencil, ToggleLeft, ToggleRight, Loader2, RotateCcw, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Pencil, ToggleLeft, ToggleRight, Loader2, RotateCcw, Trash2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import StudentFormModal from './StudentFormModal';
-import { ConfirmModal } from './ui';
+import { Badge, ConfirmModal } from './ui';
 
 interface Student {
   id: string;
@@ -16,6 +17,8 @@ interface Student {
   created_at: string;
   weekly_usage: number;
   total_usage: number;
+  sync_exempt?: boolean | null;
+  sync_exempt_until?: string | null;
 }
 
 interface StudentTableProps {
@@ -23,7 +26,7 @@ interface StudentTableProps {
   refreshKey?: number;
 }
 
-type Filter = 'all' | 'active' | 'inactive';
+type Filter = 'all' | 'active' | 'inactive' | 'exempt';
 const PAGE_SIZE = 20;
 
 export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTableProps) {
@@ -177,6 +180,7 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
     { label: '전체', value: 'all' },
     { label: '활성', value: 'active' },
     { label: '비활성', value: 'inactive' },
+    { label: '동기화 예외', value: 'exempt' },
   ];
 
   return (
@@ -222,6 +226,7 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">주간제한</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">이번 주</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">누적</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">예외</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-400">가입일</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">액션</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-400">관리</th>
@@ -230,13 +235,13 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12">
+                  <td colSpan={10} className="text-center py-12">
                     <Loader2 className="w-5 h-5 text-[#00F2FF] animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : students.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-gray-500 text-sm">
+                  <td colSpan={10} className="text-center py-12 text-gray-500 text-sm">
                     {search || filter !== 'all' ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}
                   </td>
                 </tr>
@@ -274,9 +279,26 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
                     <td className="px-4 py-3 text-center">
                       <span className="text-xs text-gray-400 font-tech">{student.total_usage}회</span>
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      {student.sync_exempt ? (
+                        <Badge tone="amber">
+                          동기화 예외{student.sync_exempt_until ? ` ~${student.sync_exempt_until.slice(0, 10)}` : ''}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-600">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(student.created_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
+                        <Link
+                          href={`/admin/students/${student.id}`}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-gray-400 hover:text-[#00F2FF] hover:bg-[#00F2FF]/10 transition-colors whitespace-nowrap"
+                          title="상세"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          상세
+                        </Link>
                         <button
                           onClick={() => setEditStudent(student)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-[#00F2FF] hover:bg-[#00F2FF]/10 transition-colors"

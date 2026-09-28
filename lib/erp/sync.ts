@@ -65,6 +65,8 @@ interface ExistingStudent {
   is_active: boolean;
   // true 면 ERP 의 비활성화 지시를 무시 (면접앱 수동 예외 활성화 유지)
   sync_exempt: boolean;
+  // 예외 해제일 (YYYY-MM-DD, KST). null 이면 무기한
+  sync_exempt_until: string | null;
 }
 
 /**
@@ -235,7 +237,7 @@ async function loadExistingByCode(codes: string[]): Promise<Map<string, Existing
     const chunk = codes.slice(i, i + CHUNK);
     const { data, error } = await supabase
       .from('students')
-      .select('id, code, is_active, sync_exempt')
+      .select('id, code, is_active, sync_exempt, sync_exempt_until')
       .in('code', chunk);
     if (error) {
       logger.error('[ERP Sync] loadExistingByCode error:', error);
@@ -280,6 +282,9 @@ function bucketPayloads(
   existingMap: Map<string, ExistingStudent>,
 ): PageBuckets {
   const b = emptyBuckets();
+  const todayKst = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
   for (const p of payloads) {
     const existing = existingMap.get(p.student_code);
     if (!existing) {
@@ -292,7 +297,11 @@ function bucketPayloads(
     } else if (existing.is_active === false && p.is_active === true) {
       // 재활성화: 큐 적재만
       b.existingReactivation.push({ payload: p, existing });
-    } else if (existing.sync_exempt) {
+    } else if (
+      // 동기화 예외는 해제일(sync_exempt_until, KST)이 없거나 오늘 이후일 때만 유효 — 지나면 일반 비활성화 경로
+      existing.sync_exempt &&
+      (existing.sync_exempt_until == null || existing.sync_exempt_until.slice(0, 10) >= todayKst)
+    ) {
       // true → false 이지만 동기화 예외: 비활성화 skip, name/updated_at 만 갱신
       b.existingExemptSkipped.push({ payload: p, existing });
       b.existingUpdate.push({ payload: p, existing });

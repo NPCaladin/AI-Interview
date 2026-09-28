@@ -1,0 +1,6 @@
+/* 인쇄 전용 라우트(/report/print)에서만 로드되는 전역 @page 규칙.
+   print.css 는 어드민 세션 상세에서도 import 되므로 @page 를 분리한다. */
+@page {
+  size: A4;
+  margin: 14mm 12mm 16mm;
+}

@@ -14,17 +14,23 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')));
     const search = (searchParams.get('search') || '').trim();
-    const filter = searchParams.get('filter') || 'all'; // all | active | inactive
+    const STUDENT_FILTERS = ['all', 'active', 'inactive', 'exempt'] as const;
+    const rawFilter = searchParams.get('filter') || 'all';
+    if (!(STUDENT_FILTERS as readonly string[]).includes(rawFilter)) {
+      return NextResponse.json({ error: '지원하지 않는 filter 값입니다.' }, { status: 400 });
+    }
+    const filter = rawFilter as (typeof STUDENT_FILTERS)[number];
     const offset = (page - 1) * limit;
 
     // 쿼리 빌더
     let query = supabase
       .from('students')
-      .select('id, code, name, weekly_limit, is_active, created_at', { count: 'exact' });
+      .select('id, code, name, weekly_limit, is_active, created_at, sync_exempt, sync_exempt_until', { count: 'exact' });
 
     // 필터
     if (filter === 'active') query = query.eq('is_active', true);
     else if (filter === 'inactive') query = query.eq('is_active', false);
+    else if (filter === 'exempt') query = query.eq('sync_exempt', true);
 
     // 검색 (code 또는 name) — PostgREST 특수문자 이스케이프
     if (search) {
@@ -45,36 +51,29 @@ export async function GET(request: NextRequest) {
     // 현재 페이지 학생들의 usage만 조회
     const studentIds = (students || []).map((s: { id: string }) => s.id);
 
-    let weeklyMap = new Map<string, number>();
-    let totalMap = new Map<string, number>();
+    const weeklyMap = new Map<string, number>();
+    const totalMap = new Map<string, number>();
 
     if (studentIds.length > 0) {
-      // 이번 주 시작일 계산 (월요일 기준)
-      const now = new Date();
-      const dayOfWeek = now.getDay();
-      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - daysFromMonday);
-      weekStart.setHours(0, 0, 0, 0);
-      const weekStartTime = weekStart.getTime();
-
-      // 현재 페이지 학생의 로그만 조회
-      const { data: logs, error: usageError } = await supabase
-        .from('usage_logs')
-        .select('student_id, created_at')
-        .in('student_id', studentIds);
-
-      if (usageError) {
-        logger.error('[Admin Students GET] Usage query error:', usageError);
+      // 이번 주(KST 월요일) 기준 — current_week_start RPC 1회, 실패 시 이번 주 카운트만 0
+      const { data: weekData, error: weekErr } = await supabase.rpc('current_week_start');
+      const weekStart = typeof weekData === 'string' ? weekData.slice(0, 10) : null;
+      if (weekErr || !weekStart) {
+        logger.error('[Admin Students GET] current_week_start error:', weekErr ?? weekData);
       }
 
-      const logRows = logs || [];
-      for (let i = 0; i < logRows.length; i++) {
-        const log = logRows[i] as { student_id: string; created_at: string };
-        const sid = log.student_id;
-        totalMap.set(sid, (totalMap.get(sid) || 0) + 1);
-        if (Date.parse(log.created_at) >= weekStartTime) {
-          weeklyMap.set(sid, (weeklyMap.get(sid) || 0) + 1);
+      // 학생별 누적·이번 주 사용량 — 배치 RPC 1회 (head-count N+1 · 1000행 캡 회피)
+      const { data: usageCounts, error: usageErr } = await supabase.rpc('student_usage_counts', {
+        p_ids: studentIds,
+        p_week_start: weekStart,
+      });
+      if (usageErr) {
+        logger.error('[Admin Students GET] student_usage_counts error:', usageErr);
+      } else {
+        const rows = (usageCounts || []) as Array<{ student_id: string; total_count: number; week_count: number }>;
+        for (let i = 0; i < rows.length; i++) {
+          totalMap.set(rows[i].student_id, rows[i].total_count ?? 0);
+          weeklyMap.set(rows[i].student_id, rows[i].week_count ?? 0);
         }
       }
     }
@@ -86,6 +85,8 @@ export async function GET(request: NextRequest) {
       weekly_limit: number;
       is_active: boolean;
       created_at: string;
+      sync_exempt: boolean | null;
+      sync_exempt_until: string | null;
     }) => ({
       ...s,
       weekly_usage: weeklyMap.get(s.id) || 0,

@@ -1,6 +1,7 @@
 'use client';
 
 import './print.css';
+import './print-page.css';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import ReportPrint from '@/components/print/ReportPrint';
