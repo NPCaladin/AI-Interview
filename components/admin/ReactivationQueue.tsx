@@ -2,9 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { adminFetch } from '@/lib/adminFetch';
-import { ArrowLeft, RefreshCw, Search, Loader2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
+import type { Eligibility } from '@/lib/erp/eligibility';
+import { ArrowLeft, RefreshCw, Search, Loader2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Inbox, CheckCheck, Info } from 'lucide-react';
 import ReactivationRow from './ReactivationRow';
+import { ConfirmModal } from './ui';
 
 export interface ReactivationItem {
   id: string;
@@ -18,6 +21,8 @@ export interface ReactivationItem {
   reviewed_at: string | null;
   note: string | null;
   created_at: string;
+  eligibility: Eligibility | null;
+  eligibility_checked_at: string | null;
   student: { id: string; code: string; name: string; is_active: boolean; created_at: string } | null;
   linked_student: { id: string; code: string; name: string; is_active: boolean; created_at: string } | null;
 }
@@ -43,6 +48,9 @@ export default function ReactivationQueue() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -116,6 +124,82 @@ export default function ReactivationQueue() {
     }
   }, [fetchItems]);
 
+  const handleCheckEligibility = useCallback(async (id: string) => {
+    setCheckingId(id);
+    try {
+      const res = await adminFetch(`/api/admin/reactivations/${encodeURIComponent(id)}/eligibility`, {
+        method: 'POST',
+      });
+      const json = (await res.json().catch(() => null)) as { eligibility?: Eligibility; error?: string } | null;
+      if (!res.ok || !json?.eligibility) {
+        toast.error(json?.error ?? `자격 확인 실패 (${res.status})`);
+        return;
+      }
+      const e = json.eligibility;
+      setItems((prev) =>
+        prev.map((it) => (it.id === id ? { ...it, eligibility: e, eligibility_checked_at: e.checked_at } : it)),
+      );
+      if (e.source === 'unavailable') {
+        toast.warning('ERP 미확인 — 자격 조회 API 준비 전이므로 수동으로 판단해 주세요.', {
+          description: e.error,
+        });
+      } else if (e.all_pass) {
+        toast.success('4조건을 모두 충족합니다.');
+      } else {
+        toast.info('4조건 중 충족하지 않는 항목이 있습니다.');
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AdminFetchError') return;
+      toast.error('자격 확인 중 네트워크 오류가 발생했습니다.');
+    } finally {
+      setCheckingId(null);
+    }
+  }, []);
+
+  const eligibleItems = items.filter((it) => it.status === 'pending' && it.eligibility?.all_pass === true);
+
+  const handleBulkApprove = useCallback(async () => {
+    const ids = items
+      .filter((it) => it.status === 'pending' && it.eligibility?.all_pass === true)
+      .map((it) => it.id);
+    if (ids.length === 0) {
+      setBulkOpen(false);
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await adminFetch('/api/admin/reactivations/bulk-approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      const json = (await res.json().catch(() => null)) as
+        | { approved?: Array<{ id: string; student_code: string }>; skipped?: Array<{ id: string; student_code: string | null; reason: string }>; error?: string }
+        | null;
+      if (!res.ok || !json) {
+        toast.error(json?.error ?? `일괄 승인 실패 (${res.status})`);
+        return;
+      }
+      const approved = json.approved ?? [];
+      const skipped = json.skipped ?? [];
+      const msg = `승인 ${approved.length}건 · 스킵 ${skipped.length}건`;
+      if (skipped.length > 0) {
+        toast.warning(msg, {
+          description: skipped.map((s) => `${s.student_code ?? s.id}: ${s.reason}`).join(', '),
+        });
+      } else {
+        toast.success(msg);
+      }
+      setBulkOpen(false);
+      await fetchItems();
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AdminFetchError') return;
+      toast.error('일괄 승인 중 네트워크 오류가 발생했습니다.');
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [items, fetchItems]);
+
   return (
     <div className="min-h-full">
       <div className="max-w-6xl mx-auto">
@@ -142,6 +226,19 @@ export default function ReactivationQueue() {
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
+        </div>
+
+        {/* 정책 안내 */}
+        <div className="flex items-start gap-2.5 p-4 mb-5 rounded-xl border border-[#00F2FF]/20 bg-[#00F2FF]/[0.04]">
+          <Info className="w-4 h-4 text-[#00F2FF] flex-shrink-0 mt-0.5" />
+          <ul className="text-xs text-gray-300 space-y-1 [word-break:keep-all] [overflow-wrap:break-word] [text-wrap:pretty]">
+            <li>WC 임시코드는 활성화하지 않습니다.</li>
+            <li>병합(merge)은 쓰지 않습니다 — 동일인이면 거부 후 메모에 연결 코드를 남겨 주세요.</li>
+            <li>
+              일괄 승인은 4조건(정규 V 학번 · ERP 미삭제 · 활성 수강 · 전화번호 중복 없음)을 모두 충족한 건만
+              처리합니다. 출처: ERP 합의 2026-09-23
+            </li>
+          </ul>
         </div>
 
         {/* 필터 + 검색 */}
@@ -188,6 +285,21 @@ export default function ReactivationQueue() {
           <div className="text-xs text-gray-400 font-tech tabular-nums">
             <span className="text-white font-semibold">{total}</span>건
           </div>
+
+          <button
+            type="button"
+            onClick={() => setBulkOpen(true)}
+            disabled={eligibleItems.length === 0 || bulkBusy}
+            className="
+              ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium
+              bg-[#00D9A5]/10 border border-[#00D9A5]/30 text-[#00D9A5]
+              hover:bg-[#00D9A5]/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors
+            "
+            title="현재 목록에서 대기중이면서 4조건을 충족한 건만 승인합니다"
+          >
+            <CheckCheck className="w-4 h-4" />
+            <span>조건 충족 건 {eligibleItems.length}개 일괄 승인</span>
+          </button>
         </div>
 
         {/* 에러 */}
@@ -228,6 +340,8 @@ export default function ReactivationQueue() {
                   isExpanded={expandedId === item.id}
                   onToggleExpand={() => setExpandedId(expandedId === item.id ? null : item.id)}
                   onAction={handleAction}
+                  onCheckEligibility={handleCheckEligibility}
+                  isCheckingEligibility={checkingId === item.id}
                 />
               ))}
             </div>
@@ -257,6 +371,31 @@ export default function ReactivationQueue() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={bulkOpen}
+        title={`조건 충족 건 ${eligibleItems.length}개 일괄 승인`}
+        message={
+          <>
+            <span>
+              아래 학생을 승인할까요? 서버가 ERP 자격을 다시 확인해 4조건을 모두 충족한 건만 승인합니다.
+            </span>
+            <span className="block mt-3 max-h-48 overflow-y-auto font-mono text-xs text-gray-300">
+              {eligibleItems.map((it) => (
+                <span key={it.id} className="block">
+                  {it.student_code}
+                  {it.student?.name ? ` ${it.student.name}` : ''}
+                </span>
+              ))}
+            </span>
+          </>
+        }
+        confirmLabel="일괄 승인"
+        tone="primary"
+        busy={bulkBusy}
+        onConfirm={handleBulkApprove}
+        onCancel={() => setBulkOpen(false)}
+      />
     </div>
   );
 }

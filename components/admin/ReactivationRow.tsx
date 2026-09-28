@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, CheckCircle2, XCircle, GitMerge, Loader2, User, UserCheck, UserX, Clock } from 'lucide-react';
+import { ChevronDown, CheckCircle2, XCircle, GitMerge, Loader2, User, UserCheck, UserX, Clock, ShieldCheck } from 'lucide-react';
 import type { ReactivationItem } from './ReactivationQueue';
 import MergeSearchPanel from './MergeSearchPanel';
+import { Badge } from './ui';
+import { isRegularCode } from '@/lib/erp/eligibility';
 
 interface Props {
   item: ReactivationItem;
@@ -14,6 +16,30 @@ interface Props {
     action: 'approve' | 'reject' | 'merge',
     extra?: { linked_student_code?: string; note?: string },
   ) => Promise<{ ok: boolean; error?: string; note?: string }>;
+  onCheckEligibility: (id: string) => Promise<void>;
+  isCheckingEligibility: boolean;
+}
+
+type CheckState = 'pass' | 'fail' | 'unknown';
+
+const CHECK_MARK: Record<CheckState, string> = { pass: '✅', fail: '❌', unknown: '⏳' };
+
+/** 4조건 체크 상태 — 자격 미확인이면 정규 V 학번만 로컬 판정, 나머지는 ⏳ */
+function eligibilityChecks(item: ReactivationItem): Array<{ label: string; state: CheckState }> {
+  const e = item.eligibility;
+  const bool = (v: boolean | null | undefined, passWhen: boolean): CheckState =>
+    v === null || v === undefined ? 'unknown' : v === passWhen ? 'pass' : 'fail';
+  const codeRegular = e ? e.code_regular : isRegularCode(item.student_code);
+  const dup = e?.phone_dup_count;
+  return [
+    { label: '정규 V 학번', state: codeRegular ? 'pass' : 'fail' },
+    { label: 'ERP 미삭제', state: bool(e?.is_deleted, false) },
+    { label: '활성 수강', state: bool(e?.enrollment_active, true) },
+    {
+      label: '전화번호 중복 없음',
+      state: dup === null || dup === undefined ? 'unknown' : dup === 0 ? 'pass' : 'fail',
+    },
+  ];
 }
 
 function relativeTime(iso: string): string {
@@ -54,7 +80,14 @@ const SOURCE_CONFIG = {
   },
 } as const;
 
-export default function ReactivationRow({ item, isExpanded, onToggleExpand, onAction }: Props) {
+export default function ReactivationRow({
+  item,
+  isExpanded,
+  onToggleExpand,
+  onAction,
+  onCheckEligibility,
+  isCheckingEligibility,
+}: Props) {
   const [isWorking, setIsWorking] = useState(false);
   const [note, setNote] = useState('');
   const [actionError, setActionError] = useState('');
@@ -63,6 +96,8 @@ export default function ReactivationRow({ item, isExpanded, onToggleExpand, onAc
   const sourceCfg = SOURCE_CONFIG[item.source];
   const SourceIcon = sourceCfg.icon;
   const isPending = item.status === 'pending';
+  const eligibility = item.eligibility;
+  const checks = eligibilityChecks(item);
 
   const performAction = async (action: 'approve' | 'reject' | 'merge', extra?: { linked_student_code?: string }) => {
     setActionError('');
@@ -95,6 +130,10 @@ export default function ReactivationRow({ item, isExpanded, onToggleExpand, onAc
             <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ color: statusCfg.color, background: `${statusCfg.color}15`, border: `1px solid ${statusCfg.color}30` }}>
               {statusCfg.label}
             </span>
+            {eligibility?.all_pass && <Badge tone="green">4조건 충족</Badge>}
+            {eligibility?.source === 'unavailable' && (
+              <Badge tone="amber">ERP 미확인 — 자격 조회 API 준비 전, 수동 판단</Badge>
+            )}
           </div>
           <div className="flex items-center gap-3 text-[11px] text-gray-500 font-tech">
             <span className="flex items-center gap-1" title={absoluteKst(item.transition_at)}>
@@ -109,6 +148,23 @@ export default function ReactivationRow({ item, isExpanded, onToggleExpand, onAc
             )}
             {item.reviewed_at && (
               <span>처리 {relativeTime(item.reviewed_at)}</span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px] text-gray-400 [word-break:keep-all]">
+            {checks.map((c) => (
+              <span key={c.label} className="whitespace-nowrap">
+                {CHECK_MARK[c.state]} {c.label}
+              </span>
+            ))}
+            {eligibility?.enrollment_status && (
+              <span className="text-gray-500">ERP 상태: {eligibility.enrollment_status}</span>
+            )}
+            {item.eligibility_checked_at ? (
+              <span className="text-gray-500" title={absoluteKst(item.eligibility_checked_at)}>
+                확인 {absoluteKst(item.eligibility_checked_at)}
+              </span>
+            ) : (
+              <span className="text-gray-600">자격 미확인</span>
             )}
           </div>
         </div>
@@ -154,6 +210,35 @@ export default function ReactivationRow({ item, isExpanded, onToggleExpand, onAc
                 <span className="text-gray-500">메모:</span>{' '}
                 <span className="text-gray-300">{item.note}</span>
               </div>
+            )}
+            {eligibility?.error && (
+              <div className="mt-3 text-xs text-[#f59e0b] [word-break:keep-all] [overflow-wrap:break-word]">
+                ERP 조회 결과: {eligibility.error}
+              </div>
+            )}
+            {eligibility?.same_name_count !== null && eligibility?.same_name_count !== undefined && (
+              <div className="mt-2 text-xs text-gray-500">
+                동명 학번 수(참고): <span className="font-tech tabular-nums">{eligibility.same_name_count}</span>
+              </div>
+            )}
+            {isPending && (
+              <button
+                type="button"
+                onClick={() => onCheckEligibility(item.id)}
+                disabled={isCheckingEligibility || isWorking}
+                className="
+                  mt-3 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium
+                  bg-white/5 border border-white/10 text-gray-300
+                  hover:text-white hover:bg-white/10 disabled:opacity-50 transition-colors
+                "
+              >
+                {isCheckingEligibility ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                )}
+                <span>{isCheckingEligibility ? '자격 확인 중…' : '자격 확인'}</span>
+              </button>
             )}
           </div>
 

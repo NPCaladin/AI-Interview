@@ -8,6 +8,7 @@ import { analyzeMultipleAnswers } from '@/lib/starAnalyzer';
 import type { SSEEventType, PremiumFeedbackItem, GameInterviewReport } from '@/lib/types';
 import { normalizeFeedbackItemScores } from '@/lib/reportUtils';
 import { saveSessionAnalysis } from '@/lib/sessionStore';
+import { getActiveSlotBody, renderSlot, buildSlotVars } from '@/lib/promptSlots';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -103,7 +104,13 @@ export async function POST(request: NextRequest) {
           // 3. 종합 분석 (GPT)
           sendSSE(controller, 'summary_progress', { message: '종합 평가 분석 중...' }, 20);
 
-          const summaryPrompt = SUMMARY_ANALYSIS_PROMPT(selected_job, questionCount, selected_company);
+          // 분석 기준 슬롯: DB 활성 버전 → 코드 기본값 (DB 버전 없으면 기존과 동일)
+          const summaryRulesBody = (await getActiveSlotBody('analysis_summary_rules')).body;
+          const summaryRulesBlock = renderSlot(
+            summaryRulesBody,
+            buildSlotVars({ job: selected_job, company: selected_company, questionCount })
+          );
+          const summaryPrompt = SUMMARY_ANALYSIS_PROMPT(selected_job, questionCount, selected_company, summaryRulesBlock);
           const summaryUserPrompt = `다음은 '${selected_job}' 직군 지원자의 면접 대화 로그입니다. 종합 분석을 수행해주세요.
 
 [면접 대화 로그]
@@ -174,9 +181,16 @@ ${taggedConversation}
             question_numbers: Array.from({ length: questionCount }, (_, i) => i + 1),
           }, 45);
 
+          // 상세 분석 기준 슬롯: DB 활성 버전 → 코드 기본값 (청크 공통, 1회 조회)
+          const detailRulesBody = (await getActiveSlotBody('analysis_detail_rules')).body;
+
           // 각 청크를 병렬로 실행하는 함수
           const analyzeChunk = async (chunkIndex: number, questionNumbers: number[]): Promise<unknown[]> => {
-            const detailPrompt = DETAIL_ANALYSIS_PROMPT(selected_job, questionNumbers, selected_company);
+            const detailRulesBlock = renderSlot(
+              detailRulesBody,
+              buildSlotVars({ job: selected_job, company: selected_company, questionNumbers })
+            );
+            const detailPrompt = DETAIL_ANALYSIS_PROMPT(selected_job, questionNumbers, selected_company, detailRulesBlock);
             const detailUserPrompt = `다음은 면접 대화 로그입니다. Q${questionNumbers[0]}~Q${questionNumbers[questionNumbers.length - 1]}번 질문에 대한 상세 분석을 수행해주세요.
 
 [면접 대화 로그]

@@ -27,6 +27,8 @@ interface ReactivationRow {
   reviewed_at: string | null;
   note: string | null;
   created_at: string;
+  eligibility: Record<string, unknown> | null;
+  eligibility_checked_at: string | null;
 }
 
 function escapeIlike(s: string): string {
@@ -51,7 +53,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('pending_reactivations')
       .select(
-        'id, student_code, student_id, source, transition_at, status, linked_student_code, reviewed_by, reviewed_at, note, created_at',
+        'id, student_code, student_id, source, transition_at, status, linked_student_code, reviewed_by, reviewed_at, note, created_at, eligibility, eligibility_checked_at',
         { count: 'exact' },
       );
 
@@ -186,47 +188,42 @@ export async function PATCH(request: NextRequest) {
     const nowIso = new Date().toISOString();
     const actor = getAdminActor(request);
 
-    // approve: 해당 code 의 students.is_active=true + status=approved
+    // approve: RPC approve_reactivation — 행 잠금 후 students.is_active=true + 큐 approved 를 한 트랜잭션으로
     if (action === 'approve') {
-      // student id 해결: case2 면 student_id 존재, case1 이면 code 로 lookup
-      let targetId = queueRow.student_id;
-      if (!targetId) {
-        const { data: s, error: sErr } = await supabase
-          .from('students')
-          .select('id')
-          .eq('code', queueRow.student_code)
-          .maybeSingle();
-        if (sErr || !s) {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('approve_reactivation', {
+        p_id: id,
+        p_actor: actor,
+        p_note: note ?? null,
+      });
+      if (rpcErr) {
+        logger.error('[Admin Reactivations PATCH] approve RPC error:', rpcErr);
+        return NextResponse.json({ error: '승인 처리 실패' }, { status: 500 });
+      }
+      const result = (rpcData ?? {}) as {
+        ok?: boolean;
+        code?: string;
+        status?: string;
+        student_id?: string;
+        student_code?: string;
+      };
+      if (!result.ok) {
+        if (result.code === 'NOT_PENDING') {
           return NextResponse.json(
-            { error: `학생(${queueRow.student_code}) 조회 실패` },
-            { status: 500 },
+            { error: `이미 처리됨 (status=${result.status ?? '?'})`, code: result.code },
+            { status: 409 },
           );
         }
-        targetId = (s as { id: string }).id;
-      }
-
-      const { error: uErr } = await supabase
-        .from('students')
-        .update({ is_active: true })
-        .eq('id', targetId);
-      if (uErr) {
-        logger.error('[Admin Reactivations PATCH] activate error:', uErr);
-        return NextResponse.json({ error: '학생 활성화 실패' }, { status: 500 });
-      }
-
-      const { error: qErr } = await supabase
-        .from('pending_reactivations')
-        .update({
-          status: 'approved',
-          reviewed_by: actor,
-          reviewed_at: nowIso,
-          note: note ?? null,
-          student_id: targetId, // case1 보강
-        })
-        .eq('id', id);
-      if (qErr) {
-        logger.error('[Admin Reactivations PATCH] queue update error:', qErr);
-        return NextResponse.json({ error: '큐 상태 갱신 실패' }, { status: 500 });
+        if (result.code === 'NOT_FOUND') {
+          return NextResponse.json({ error: '큐 항목을 찾을 수 없음', code: result.code }, { status: 404 });
+        }
+        if (result.code === 'STUDENT_NOT_FOUND') {
+          return NextResponse.json(
+            { error: `학생(${queueRow.student_code}) 을 찾을 수 없음`, code: result.code },
+            { status: 404 },
+          );
+        }
+        logger.error('[Admin Reactivations PATCH] approve RPC unexpected result:', result);
+        return NextResponse.json({ error: '승인 처리 실패', code: result.code ?? null }, { status: 500 });
       }
 
       await logAdminAction({
@@ -238,7 +235,7 @@ export async function PATCH(request: NextRequest) {
         request,
       });
 
-      return NextResponse.json({ ok: true, action: 'approve', student_id: targetId });
+      return NextResponse.json({ ok: true, action: 'approve', student_id: result.student_id ?? null });
     }
 
     // reject: 큐 상태만

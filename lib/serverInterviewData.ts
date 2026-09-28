@@ -9,11 +9,41 @@ let cachedData: InterviewData | null = null;
 let cacheExpiry = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+/** PostgREST 기본 max-rows(1000) 캡 회피용 페이지 크기 */
+const PAGE_SIZE = 1000;
+
+/**
+ * 활성 행 전량 로드 (1000행 단위 .range() 루프).
+ * id 로 안정 정렬해 페이지 경계에서 누락·중복이 없도록 한다.
+ */
+async function fetchAllActive<T>(table: string, columns: string): Promise<{ data: T[]; error: unknown }> {
+  const all: T[] = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(columns)
+      .eq('is_active', true)
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) return { data: [], error };
+    const rows = (data || []) as unknown as T[];
+    all.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return { data: all, error: null };
+}
+
+/** 어드민 문항 쓰기 후 호출 — 다음 요청에서 DB 를 다시 읽게 한다 */
+export function invalidateInterviewDataCache(): void {
+  cachedData = null;
+  cacheExpiry = 0;
+}
+
 async function fetchFromSupabase(): Promise<InterviewData | null> {
   const [jobsRes, questionsRes, personalityRes, criteriaRes] = await Promise.all([
-    supabase.from('interview_jobs').select('job_name, keywords'),
-    supabase.from('interview_questions').select('job_name, raw_text'),
-    supabase.from('interview_personality_questions').select('category, question'),
+    supabase.from('interview_jobs').select('job_name, keywords').eq('is_active', true),
+    fetchAllActive<{ job_name: string; raw_text: string }>('interview_questions', 'job_name, raw_text'),
+    fetchAllActive<{ category: string; question: string }>('interview_personality_questions', 'category, question'),
     supabase.from('interview_eval_criteria').select('criterion').order('sort_order'),
   ]);
 

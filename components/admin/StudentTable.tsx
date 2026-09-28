@@ -24,12 +24,14 @@ interface Student {
 interface StudentTableProps {
   onRefresh: () => void;
   refreshKey?: number;
+  /** 현재 적용된 검색·필터 통지 (CSV 내보내기용) */
+  onFiltersChange?: (f: { search: string; filter: Filter }) => void;
 }
 
 type Filter = 'all' | 'active' | 'inactive' | 'exempt';
 const PAGE_SIZE = 20;
 
-export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTableProps) {
+export default function StudentTable({ onRefresh, refreshKey = 0, onFiltersChange }: StudentTableProps) {
   const [students, setStudents] = useState<Student[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -54,6 +56,10 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
     }, 300);
     return () => clearTimeout(id);
   }, [search]);
+
+  useEffect(() => {
+    onFiltersChange?.({ search: debouncedSearch, filter });
+  }, [debouncedSearch, filter, onFiltersChange]);
 
   // 단일 useEffect로 모든 조건 변경 시 서버 조회 (AbortController로 경쟁 방지)
   useEffect(() => {

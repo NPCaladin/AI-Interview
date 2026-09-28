@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Search } from 'lucide-react';
+import { FileDown, Search } from 'lucide-react';
 import { adminFetch } from '@/lib/adminFetch';
 import { COMPANY_LIST } from '@/lib/constants';
 import { formatKstDateTime, getPassTone, type PassTone } from '@/lib/reportUtils';
@@ -264,7 +264,33 @@ export default function AdminSessionsPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <PageHeader title="면접 세션" subtitle="면접 진행 기록 · 분석 리포트 조회" />
+      <PageHeader
+        title="면접 세션"
+        subtitle="면접 진행 기록 · 분석 리포트 조회"
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              // 목록 조회와 같은 필터 파라미터 (날짜는 KST 하루 경계)
+              const params = new URLSearchParams({ type: 'sessions' });
+              if (search) params.set('search', search);
+              if (job) params.set('job', job);
+              if (company) params.set('company', company);
+              if (status) params.set('status', status);
+              if (minScore.trim()) params.set('minScore', minScore.trim());
+              if (maxScore.trim()) params.set('maxScore', maxScore.trim());
+              if (from) params.set('from', `${from}T00:00:00+09:00`);
+              if (to) params.set('to', `${to}T23:59:59.999+09:00`);
+              if (includeDev) params.set('includeDev', '1');
+              window.location.href = `/api/admin/export?${params}`;
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>CSV 내보내기</span>
+          </button>
+        }
+      />
 
       <FilterBar total={total}>
         <select

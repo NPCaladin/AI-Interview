@@ -4,7 +4,7 @@ import '@/app/report/print/print.css';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, FileDown, Loader2, MessageSquare } from 'lucide-react';
+import { ArrowLeft, FileDown, History, Loader2, MessageSquare } from 'lucide-react';
 import { adminFetch } from '@/lib/adminFetch';
 import { formatKstDateTime } from '@/lib/reportUtils';
 import { buildPrintUrl, saveReportPrintPayload, type ReportPrintPayload } from '@/lib/reportPrint';
@@ -81,6 +81,74 @@ function InfoItem({ label, children }: { label: string; children: ReactNode }) {
     <div className="min-w-0">
       <dt className="text-[11px] text-gray-500 mb-0.5">{label}</dt>
       <dd className="text-sm text-gray-200 [word-break:keep-all] [overflow-wrap:break-word]">{children}</dd>
+    </div>
+  );
+}
+
+interface SessionAuditItem {
+  id: string;
+  actor: string;
+  action: string;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+/** 이 세션의 감사 로그 (최근 10건) */
+function SessionAuditCard({ sessionId }: { sessionId: string }) {
+  const [items, setItems] = useState<SessionAuditItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams({ resource_type: 'session', resource_id: sessionId, limit: '10' });
+        const res = await adminFetch(`/api/admin/audit?${params}`, { signal: controller.signal, cache: 'no-store' });
+        const json = (await res.json().catch(() => null)) as { items?: SessionAuditItem[]; error?: string } | null;
+        if (!res.ok || !json) {
+          toast.error(json?.error ?? `감사 로그 조회 실패 (${res.status})`);
+          return;
+        }
+        setItems(json.items ?? []);
+      } catch (err) {
+        if (err instanceof Error && (err.name === 'AbortError' || err.name === 'AdminFetchError')) return;
+        toast.error('감사 로그를 불러오지 못했습니다.');
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [sessionId]);
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5 mt-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-white">이 세션의 감사 로그</h2>
+        <Link
+          href="/admin/audit"
+          className="text-xs text-gray-500 hover:text-[#00F2FF] hover:underline"
+        >
+          전체 감사 로그
+        </Link>
+      </div>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6 text-gray-400">
+          <Loader2 className="w-5 h-5 animate-spin" />
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState title="이 세션에 대한 감사 로그가 없습니다." icon={<History className="w-8 h-8" />} />
+      ) : (
+        <ul className="divide-y divide-white/5">
+          {items.map((a) => (
+            <li key={a.id} className="py-2.5 flex flex-wrap items-center gap-3">
+              <Badge tone="gray">{a.action}</Badge>
+              <span className="text-xs text-gray-300">{a.actor}</span>
+              <span className="ml-auto text-xs text-gray-500 whitespace-nowrap">{kst(a.created_at)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -346,6 +414,8 @@ export default function AdminSessionDetailPage({ params }: { params: { id: strin
             <EmptyState title="분석 리포트 없음" />
           </div>
         ))}
+
+      <SessionAuditCard sessionId={session.id} />
     </div>
   );
 }

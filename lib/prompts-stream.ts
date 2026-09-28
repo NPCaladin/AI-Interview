@@ -6,47 +6,27 @@
  * 2. 상세 분석: 질문별 상세 피드백 (4개씩 분할)
  */
 
-import { SCORE_BANDS, GAME_INTERVIEW_RUBRIC, PASS_PREDICTION_CRITERIA } from './constants';
-
-// ========================================
-// 헬퍼 함수
-// ========================================
-
-function formatRubric(rubric: typeof GAME_INTERVIEW_RUBRIC) {
-  return Object.entries(rubric).map(([key, item]) => {
-    const weight = item.weight ? ` (가중치: ${Math.round(item.weight * 100)}%)` : '';
-    return `### ${item.name}${weight}
-- 90-100점(탁월): ${item.criteria.excellent}
-- 80-89점(우수): ${item.criteria.good}
-- 70-79점(양호): ${item.criteria.average}
-- 60-69점(미흡): ${item.criteria.below}
-- 0-59점(부족): ${item.criteria.poor}`;
-  }).join('\n\n');
-}
+import { renderSlot, buildSlotVars } from './promptSlots';
+import { ANALYSIS_SUMMARY_RULES_DEFAULT, ANALYSIS_DETAIL_RULES_DEFAULT } from './promptDefaults';
 
 // ========================================
 // 1단계: 종합 분석 프롬프트
 // ========================================
 
-export const SUMMARY_ANALYSIS_PROMPT = (selectedJob: string, questionCount: number, selectedCompany?: string) => `
+/**
+ * @param rulesBlock 슬롯 analysis_summary_rules 를 렌더한 블록. 미지정이면 코드 기본값을 렌더해 사용.
+ */
+export const SUMMARY_ANALYSIS_PROMPT = (
+  selectedJob: string,
+  questionCount: number,
+  selectedCompany?: string,
+  rulesBlock?: string
+) => `
 당신은 ${selectedCompany || '게임회사'}의 ${selectedJob} 직군 면접관이자 취업 코칭 전문가입니다.
 
 [역할] 면접 대화를 분석하여 **종합 평가**를 작성합니다. (상세 질문별 분석은 별도 진행)
 
-## 점수 구간 정의
-- ${SCORE_BANDS.excellent.min}-${SCORE_BANDS.excellent.max}점: ${SCORE_BANDS.excellent.label}
-- ${SCORE_BANDS.good.min}-${SCORE_BANDS.good.max}점: ${SCORE_BANDS.good.label}
-- ${SCORE_BANDS.average.min}-${SCORE_BANDS.average.max}점: ${SCORE_BANDS.average.label}
-- ${SCORE_BANDS.below.min}-${SCORE_BANDS.below.max}점: ${SCORE_BANDS.below.label}
-- ${SCORE_BANDS.poor.min}-${SCORE_BANDS.poor.max}점: ${SCORE_BANDS.poor.label}
-
-## 평가 항목
-${formatRubric(GAME_INTERVIEW_RUBRIC)}
-
-## 합격 예측 기준
-- ${PASS_PREDICTION_CRITERIA.pass.min}점 이상: ${PASS_PREDICTION_CRITERIA.pass.label}
-- ${PASS_PREDICTION_CRITERIA.borderline.min}점 이상: ${PASS_PREDICTION_CRITERIA.borderline.label}
-- ${PASS_PREDICTION_CRITERIA.borderline.min}점 미만: ${PASS_PREDICTION_CRITERIA.fail.label}
+${rulesBlock ?? renderSlot(ANALYSIS_SUMMARY_RULES_DEFAULT, buildSlotVars({ job: selectedJob, company: selectedCompany, questionCount }))}
 
 ${selectedCompany ? `## 지원 회사: ${selectedCompany}` : ''}
 ## 지원 직군: ${selectedJob}
@@ -130,10 +110,14 @@ ${selectedCompany ? `## 지원 회사: ${selectedCompany}` : ''}
 // 2단계: 질문별 상세 분석 프롬프트
 // ========================================
 
+/**
+ * @param rulesBlock 슬롯 analysis_detail_rules 를 렌더한 블록. 미지정이면 코드 기본값을 렌더해 사용.
+ */
 export const DETAIL_ANALYSIS_PROMPT = (
   selectedJob: string,
   questionNumbers: number[],
-  selectedCompany?: string
+  selectedCompany?: string,
+  rulesBlock?: string
 ) => `
 당신은 ${selectedCompany || '게임회사'}의 ${selectedJob} 직군 면접관이자 취업 코칭 전문가입니다.
 
@@ -148,30 +132,7 @@ export const DETAIL_ANALYSIS_PROMPT = (
 ## 분석 대상 질문 (정확히 ${questionNumbers.length}개)
 ${questionNumbers.map(n => `- Q${n}`).join('\n')}
 
-## 질문 단계 구분 (평가 기준 차별화)
-- Q1~Q5: 자기소개/지원동기/직무선택/역량 단계 → STAR 분석 대신 **표현 명확성, 논리 구조, 진정성** 평가
-- Q6~Q9: 직무 역량 검증 단계 → **STAR 구조, 직무 관련 구체성, 수치/사례 여부** 중심 평가
-- Q10~Q11: 인성/조직적합도 단계 → **가치관, 협업 태도, 문제해결 사고방식** 중심 평가
-- Q12: 마무리 발언 단계 → **자기 어필의 질과 회사에 대한 관심도** 평가
-
-분석 대상 질문 번호가 위 단계 중 어디에 해당하는지 판단하여 적합한 기준을 적용하세요.
-Q1~Q5는 star_analysis의 각 항목을 해당 없으면 "해당 없음 (자기소개/동기 단계)" 으로 표시하고 feedback에 명확성/논리/진정성 위주로 서술하세요.
-
-## 점수 척도 (필수 — 10점 만점 금지)
-모든 "score" 값(질문 점수, STAR 4항목 점수)은 **0~100 사이의 정수**입니다. 종합 평가와 같은 척도를 씁니다.
-- ${SCORE_BANDS.excellent.min}-${SCORE_BANDS.excellent.max}점: ${SCORE_BANDS.excellent.label}
-- ${SCORE_BANDS.good.min}-${SCORE_BANDS.good.max}점: ${SCORE_BANDS.good.label}
-- ${SCORE_BANDS.average.min}-${SCORE_BANDS.average.max}점: ${SCORE_BANDS.average.label}
-- ${SCORE_BANDS.below.min}-${SCORE_BANDS.below.max}점: ${SCORE_BANDS.below.label}
-- ${SCORE_BANDS.poor.min}-${SCORE_BANDS.poor.max}점: ${SCORE_BANDS.poor.label}
-- STAR 항목이 "해당 없음"이면 score는 0
-
-## 평가 기준
-### STAR 분석 (직무 역량 검증 단계 Q6~Q9에만 적용)
-- S (상황): 구체적인 시간, 장소, 배경 설명
-- T (역할): 본인의 역할과 책임
-- A (행동): 본인이 직접 취한 구체적 행동 ← 가장 중요!
-- R (결과): 정량적/정성적 성과와 배운 점
+${rulesBlock ?? renderSlot(ANALYSIS_DETAIL_RULES_DEFAULT, buildSlotVars({ job: selectedJob, company: selectedCompany, questionNumbers }))}
 
 ## JSON 출력 형식
 ⚠️ 중요: 반드시 "detailed_feedback" 키를 사용하고, 배열 안에 각 질문의 분석을 포함하세요.

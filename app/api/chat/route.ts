@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { getRecentlyAskedQuestions, recordSessionQuestion } from '@/lib/crossSessionDedup';
 import { isUuid, createSession, bumpSession } from '@/lib/sessionStore';
+import { getActiveSlotBody } from '@/lib/promptSlots';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -215,13 +216,15 @@ export async function POST(request: NextRequest) {
     try {
       if (interview_data && selected_job && selected_company !== undefined) {
         logger.debug('[Chat API] 동적 시스템 프롬프트 생성');
+        // 페르소나 슬롯: dev config 우선 → DB 활성 버전 → 코드 기본값 (DB 버전 없으면 기존과 동일)
+        const personaOverride = config?.systemPrompt || (await getActiveSlotBody('interviewer_persona')).body;
         systemPrompt = buildSystemPrompt(
           interview_data,
           selected_job,
           selected_company,
           safeQuestionCount,
           resume_text,
-          config?.systemPrompt,
+          personaOverride,
           messages, // Phase 1, 2, 3: 전체 메시지 전달 (블랙리스트, 꼬리질문 결정에 사용)
           recentlyAskedQuestions.length > 0 ? recentlyAskedQuestions : undefined
         );
