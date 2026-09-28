@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { adminFetch } from '@/lib/adminFetch';
 import { Activity, ClipboardList, ChevronRight, Loader2 } from 'lucide-react';
 
 interface SyncState {
@@ -65,18 +65,16 @@ const HEALTH_STYLES: Record<Health, { dot: string; text: string; label: string }
 };
 
 export default function ErpStatusBar() {
-  const { authHeaders, logout } = useAdminAuth();
   const [status, setStatus] = useState<Status | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchStatus = useCallback(async () => {
     try {
       const [syncRes, pendingRes] = await Promise.all([
-        fetch('/api/admin/sync-status', { headers: authHeaders(), cache: 'no-store' }),
-        fetch('/api/admin/reactivations?status=pending&limit=1', { headers: authHeaders(), cache: 'no-store' }),
+        adminFetch('/api/admin/sync-status', { cache: 'no-store' }),
+        adminFetch('/api/admin/reactivations?status=pending&limit=1', { cache: 'no-store' }),
       ]);
 
-      if (syncRes.status === 401 || pendingRes.status === 401) { logout(); return; }
       if (!syncRes.ok || !pendingRes.ok) { setStatus(null); return; }
 
       const syncJson = await syncRes.json();
@@ -95,7 +93,7 @@ export default function ErpStatusBar() {
     } finally {
       setIsLoading(false);
     }
-  }, [authHeaders, logout]);
+  }, []);
 
   useEffect(() => {
     fetchStatus();

@@ -1,27 +1,68 @@
 'use client';
 
-import { useState } from 'react';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
-import { Lock, Loader2, AlertCircle, Shield } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Lock, Loader2, AlertCircle, Shield, User } from 'lucide-react';
 
-export default function AdminLoginScreen() {
-  const { login } = useAdminAuth();
+const ACTOR_STORAGE_KEY = 'eveni.admin.actor';
+
+function resolveNext(): string {
+  try {
+    const next = new URLSearchParams(window.location.search).get('next');
+    // 오픈 리다이렉트 방지: /admin 으로 시작하는 내부 경로만 허용
+    if (next && next.startsWith('/admin')) return next;
+  } catch {
+    // 무시하고 기본값
+  }
+  return '/admin';
+}
+
+export default function AdminLoginPage() {
+  const [actor, setActor] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(ACTOR_STORAGE_KEY);
+      if (saved) setActor(saved);
+    } catch {
+      // localStorage 접근 불가 환경 무시
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password.trim() || isSubmitting) return;
+    if (!actor.trim() || !password.trim() || isSubmitting) return;
 
     setError('');
     setIsSubmitting(true);
 
     try {
-      await login(password);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '인증에 실패했습니다.');
-    } finally {
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, actor }),
+        credentials: 'same-origin',
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; actor?: string; error?: string };
+
+      if (!res.ok || !data.ok) {
+        setError(data.error || '인증에 실패했습니다.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      try {
+        localStorage.setItem(ACTOR_STORAGE_KEY, data.actor || actor.trim());
+      } catch {
+        // 저장 실패 무시
+      }
+
+      // 전체 네비게이션 — middleware 가 새 쿠키를 보도록
+      window.location.href = resolveNext();
+    } catch {
+      setError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
       setIsSubmitting(false);
     }
   };
@@ -59,15 +100,36 @@ export default function AdminLoginScreen() {
           {/* 폼 */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-2 tracking-normal">
+              <label htmlFor="admin-actor" className="block text-xs font-medium text-gray-300 mb-2 tracking-normal">
+                <User className="w-3 h-3 inline mr-1.5" />
+                작업자 이름
+              </label>
+              <input
+                id="admin-actor"
+                type="text"
+                value={actor}
+                onChange={(e) => setActor(e.target.value)}
+                placeholder="예: 홍길동"
+                maxLength={30}
+                autoComplete="username"
+                disabled={isSubmitting}
+                className="w-full px-4 py-3.5 bg-dark-700/80 border border-dark-500 rounded-xl text-white text-lg placeholder:text-gray-500 focus:border-[#f59e0b]/60 focus:outline-none focus:shadow-[0_0_20px_rgba(245,158,11,0.15)] transition-all duration-300 disabled:opacity-50"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="admin-password" className="block text-xs font-medium text-gray-300 mb-2 tracking-normal">
                 <Lock className="w-3 h-3 inline mr-1.5" />
                 관리자 비밀번호
               </label>
               <input
+                id="admin-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="비밀번호 입력"
+                maxLength={128}
+                autoComplete="current-password"
                 autoFocus
                 disabled={isSubmitting}
                 className="w-full px-4 py-3.5 bg-dark-700/80 border border-dark-500 rounded-xl text-white text-lg placeholder:text-gray-500 focus:border-[#f59e0b]/60 focus:outline-none focus:shadow-[0_0_20px_rgba(245,158,11,0.15)] transition-all duration-300 disabled:opacity-50"
@@ -85,7 +147,7 @@ export default function AdminLoginScreen() {
             {/* 제출 버튼 */}
             <button
               type="submit"
-              disabled={!password.trim() || isSubmitting}
+              disabled={!actor.trim() || !password.trim() || isSubmitting}
               className="
                 relative w-full py-3.5 px-4 rounded-xl text-sm tracking-normal
                 transition-all duration-300 flex items-center justify-center gap-2.5

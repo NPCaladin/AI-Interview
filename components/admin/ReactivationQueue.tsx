@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { adminFetch } from '@/lib/adminFetch';
 import { ArrowLeft, RefreshCw, Search, Loader2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
 import ReactivationRow from './ReactivationRow';
 
@@ -34,7 +34,6 @@ const FILTERS: { value: FilterStatus; label: string; color: string }[] = [
 ];
 
 export default function ReactivationQueue() {
-  const { authHeaders, logout } = useAdminAuth();
   const [items, setItems] = useState<ReactivationItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -71,12 +70,10 @@ export default function ReactivationQueue() {
     });
 
     try {
-      const res = await fetch(`/api/admin/reactivations?${params}`, {
-        headers: authHeaders(),
+      const res = await adminFetch(`/api/admin/reactivations?${params}`, {
         signal: controller.signal,
         cache: 'no-store',
       });
-      if (res.status === 401) { logout(); return; }
       if (!res.ok) {
         setError(`조회 실패 (${res.status})`);
         return;
@@ -91,7 +88,7 @@ export default function ReactivationQueue() {
     } finally {
       setIsLoading(false);
     }
-  }, [authHeaders, logout, filter, page, debouncedSearch]);
+  }, [filter, page, debouncedSearch]);
 
   useEffect(() => {
     fetchItems();
@@ -104,12 +101,11 @@ export default function ReactivationQueue() {
     extra?: { linked_student_code?: string; note?: string },
   ): Promise<{ ok: boolean; error?: string; note?: string }> => {
     try {
-      const res = await fetch('/api/admin/reactivations', {
+      const res = await adminFetch('/api/admin/reactivations', {
         method: 'PATCH',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action, ...extra }),
       });
-      if (res.status === 401) { logout(); return { ok: false, error: '로그아웃됨' }; }
       const json = await res.json();
       if (!res.ok) return { ok: false, error: json.error || '처리 실패' };
       await fetchItems();
@@ -118,10 +114,10 @@ export default function ReactivationQueue() {
     } catch {
       return { ok: false, error: '네트워크 오류' };
     }
-  }, [authHeaders, logout, fetchItems]);
+  }, [fetchItems]);
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
+    <div className="min-h-full">
       <div className="max-w-6xl mx-auto">
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-6">

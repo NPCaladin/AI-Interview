@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { getAdminActor } from '@/lib/adminAuth';
+import { logAdminAction } from '@/lib/adminAudit';
+import { isUuid } from '@/lib/sessionStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +19,8 @@ export async function POST(request: NextRequest) {
 
     const { id } = body;
 
-    if (!id || typeof id !== 'string') {
-      return NextResponse.json({ error: '학생 ID가 필요합니다.' }, { status: 400 });
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: '학생 ID(UUID)가 필요합니다.' }, { status: 400 });
     }
 
     // Asia/Seoul 기준 이번 주 월요일 날짜 계산
@@ -28,9 +31,9 @@ export async function POST(request: NextRequest) {
     kst.setDate(kst.getDate() - daysFromMonday);
     const weekStartStr = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}-${String(kst.getDate()).padStart(2, '0')}`;
 
-    const { error } = await supabase
+    const { error, count: deletedCount } = await supabase
       .from('usage_logs')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('student_id', id)
       .eq('week_start', weekStartStr);
 
@@ -38,6 +41,15 @@ export async function POST(request: NextRequest) {
       logger.error('[Admin Reset] Delete usage error:', error);
       return NextResponse.json({ error: '사용량 리셋에 실패했습니다.' }, { status: 500 });
     }
+
+    await logAdminAction({
+      actor: getAdminActor(request),
+      action: 'STUDENT_RESET_USAGE',
+      resource_type: 'student',
+      resource_id: id,
+      details: { deleted_count: deletedCount ?? 0, week_start: weekStartStr },
+      request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

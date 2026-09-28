@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { getAdminActor } from '@/lib/adminAuth';
+import { logAdminAction } from '@/lib/adminAudit';
+import { isUuid } from '@/lib/sessionStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,7 +140,7 @@ export async function POST(request: NextRequest) {
 
     const { data: student, error } = await supabase
       .from('students')
-      .insert({ code: normalizedCode, name: trimmedName, weekly_limit: limit })
+      .insert({ code: normalizedCode, name: trimmedName, weekly_limit: limit, source: 'manual' })
       .select('id, code, name, weekly_limit, is_active, created_at')
       .single();
 
@@ -148,6 +151,15 @@ export async function POST(request: NextRequest) {
       logger.error('[Admin Students POST] Insert error:', error);
       return NextResponse.json({ error: '학생 추가에 실패했습니다.' }, { status: 500 });
     }
+
+    await logAdminAction({
+      actor: getAdminActor(request),
+      action: 'STUDENT_CREATE',
+      resource_type: 'student',
+      resource_id: (student as { id: string } | null)?.id ?? null,
+      new_values: { code: normalizedCode, name: trimmedName, weekly_limit: limit },
+      request,
+    });
 
     return NextResponse.json({ student }, { status: 201 });
   } catch (error) {
@@ -168,8 +180,46 @@ export async function DELETE(request: NextRequest) {
 
     const { id } = body;
 
-    if (!id || typeof id !== 'string') {
-      return NextResponse.json({ error: '학생 ID가 필요합니다.' }, { status: 400 });
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: '학생 ID(UUID)가 필요합니다.' }, { status: 400 });
+    }
+
+    // 삭제 가드: ERP 연동 학생 또는 면접 이력이 있는 학생은 삭제 불가 (비활성화 사용)
+    const { data: target, error: targetErr } = await supabase
+      .from('students')
+      .select('id, code, name, source')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (targetErr) {
+      logger.error('[Admin Students DELETE] Lookup error:', targetErr);
+      return NextResponse.json({ error: '학생 조회에 실패했습니다.' }, { status: 500 });
+    }
+    if (!target) {
+      return NextResponse.json({ error: '학생을 찾을 수 없습니다.' }, { status: 404 });
+    }
+
+    const targetRow = target as { id: string; code: string; name: string; source: string | null };
+
+    const { count: sessionCount, error: countErr } = await supabase
+      .from('interview_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('student_id', id);
+
+    if (countErr) {
+      logger.error('[Admin Students DELETE] Session count error:', countErr);
+      return NextResponse.json({ error: '면접 이력 확인에 실패했습니다.' }, { status: 500 });
+    }
+
+    if (
+      targetRow.source === 'erp_sync' ||
+      targetRow.source === 'erp_migration' ||
+      (sessionCount ?? 0) > 0
+    ) {
+      return NextResponse.json(
+        { error: 'ERP 연동 학생/면접 이력이 있는 학생은 삭제할 수 없습니다. 비활성화를 사용하세요.' },
+        { status: 409 },
+      );
     }
 
     const { error } = await supabase
@@ -181,6 +231,15 @@ export async function DELETE(request: NextRequest) {
       logger.error('[Admin Students DELETE] Delete error:', error);
       return NextResponse.json({ error: '학생 삭제에 실패했습니다.' }, { status: 500 });
     }
+
+    await logAdminAction({
+      actor: getAdminActor(request),
+      action: 'STUDENT_DELETE',
+      resource_type: 'student',
+      resource_id: targetRow.id,
+      old_values: { code: targetRow.code, name: targetRow.name },
+      request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -201,8 +260,8 @@ export async function PATCH(request: NextRequest) {
 
     const { id, name, weekly_limit, is_active } = body;
 
-    if (!id || typeof id !== 'string') {
-      return NextResponse.json({ error: '학생 ID가 필요합니다.' }, { status: 400 });
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: '학생 ID(UUID)가 필요합니다.' }, { status: 400 });
     }
 
     const updates: Record<string, unknown> = {};
@@ -232,6 +291,22 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: '변경할 필드가 없습니다.' }, { status: 400 });
     }
 
+    const { data: beforeData, error: beforeErr } = await supabase
+      .from('students')
+      .select('id, name, weekly_limit, is_active')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (beforeErr) {
+      logger.error('[Admin Students PATCH] Lookup error:', beforeErr);
+      return NextResponse.json({ error: '학생 조회에 실패했습니다.' }, { status: 500 });
+    }
+    if (!beforeData) {
+      return NextResponse.json({ error: '학생을 찾을 수 없습니다.' }, { status: 404 });
+    }
+
+    const before = beforeData as { id: string; name: string; weekly_limit: number; is_active: boolean };
+
     const { data: student, error } = await supabase
       .from('students')
       .update(updates)
@@ -247,6 +322,22 @@ export async function PATCH(request: NextRequest) {
     if (!student) {
       return NextResponse.json({ error: '학생을 찾을 수 없습니다.' }, { status: 404 });
     }
+
+    const oldValues: Record<string, unknown> = {};
+    for (const key of Object.keys(updates)) {
+      oldValues[key] = before[key as keyof typeof before];
+    }
+    const toggled = updates.is_active !== undefined && updates.is_active !== before.is_active;
+
+    await logAdminAction({
+      actor: getAdminActor(request),
+      action: toggled ? 'STUDENT_TOGGLE' : 'STUDENT_UPDATE',
+      resource_type: 'student',
+      resource_id: before.id,
+      old_values: oldValues,
+      new_values: updates,
+      request,
+    });
 
     return NextResponse.json({ student });
   } catch (error) {

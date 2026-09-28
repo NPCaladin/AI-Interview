@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { toast } from 'sonner';
+import { adminFetch } from '@/lib/adminFetch';
 import { Search, Pencil, ToggleLeft, ToggleRight, Loader2, RotateCcw, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import StudentFormModal from './StudentFormModal';
+import { ConfirmModal } from './ui';
 
 interface Student {
   id: string;
@@ -24,22 +26,7 @@ interface StudentTableProps {
 type Filter = 'all' | 'active' | 'inactive';
 const PAGE_SIZE = 20;
 
-function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-sm rounded-2xl border border-red-500/40 bg-[#12121a] p-6 shadow-2xl">
-        <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-line mb-6">{message}</p>
-        <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm text-gray-300 border border-white/20 hover:bg-white/5 transition-colors">취소</button>
-          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors">확인</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTableProps) {
-  const { authHeaders } = useAdminAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -51,7 +38,7 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; confirmLabel: string; onConfirm: () => void } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -80,8 +67,7 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
       ...(filter !== 'all' && { filter }),
     });
 
-    fetch(`/api/admin/students?${params}`, {
-      headers: authHeaders(),
+    adminFetch(`/api/admin/students?${params}`, {
       signal: controller.signal,
     })
       .then((res) => res.ok ? res.json() : null)
@@ -102,7 +88,7 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
       });
 
     return () => controller.abort();
-  }, [page, debouncedSearch, filter, refreshKey, authHeaders]);
+  }, [page, debouncedSearch, filter, refreshKey]);
 
   // 검색어 입력 핸들러 (UI만 업데이트, 실제 조회는 debouncedSearch가 담당)
   const handleSearchChange = (value: string) => {
@@ -122,9 +108,9 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
     if (togglingId) return;
     setTogglingId(student.id);
     try {
-      const response = await fetch('/api/admin/students', {
+      const response = await adminFetch('/api/admin/students', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: student.id, is_active: !student.is_active }),
       });
       if (response.ok) refresh();
@@ -138,14 +124,16 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
   const handleReset = async (student: Student) => {
     if (resettingId) return;
     setConfirmModal({
+      title: '사용량 초기화',
+      confirmLabel: '초기화',
       message: `${student.name}(${student.code})의 이번 주 사용량을 초기화할까요?`,
       onConfirm: async () => {
         setConfirmModal(null);
         setResettingId(student.id);
         try {
-          const response = await fetch('/api/admin/students/reset', {
+          const response = await adminFetch('/api/admin/students/reset', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: student.id }),
           });
           if (response.ok) refresh();
@@ -157,17 +145,24 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
   const handleDelete = async (student: Student) => {
     if (deletingId) return;
     setConfirmModal({
+      title: '학생 삭제',
+      confirmLabel: '삭제',
       message: `${student.name}(${student.code})을 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`,
       onConfirm: async () => {
         setConfirmModal(null);
         setDeletingId(student.id);
         try {
-          const response = await fetch('/api/admin/students', {
+          const response = await adminFetch('/api/admin/students', {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: student.id }),
           });
-          if (response.ok) refresh();
+          if (response.ok) {
+            refresh();
+          } else {
+            const j = await response.json().catch(() => ({}));
+            toast.error(j.error || '학생 삭제에 실패했습니다.');
+          }
         } catch { /* ignore */ } finally { setDeletingId(null); }
       },
     });
@@ -382,13 +377,15 @@ export default function StudentTable({ onRefresh, refreshKey = 0 }: StudentTable
         />
       )}
 
-      {confirmModal && (
-        <ConfirmModal
-          message={confirmModal.message}
-          onConfirm={confirmModal.onConfirm}
-          onCancel={() => setConfirmModal(null)}
-        />
-      )}
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title ?? ''}
+        message={confirmModal?.message ?? ''}
+        confirmLabel={confirmModal?.confirmLabel}
+        tone="danger"
+        onConfirm={() => confirmModal?.onConfirm()}
+        onCancel={() => setConfirmModal(null)}
+      />
     </>
   );
 }

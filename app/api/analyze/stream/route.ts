@@ -5,8 +5,9 @@ export const maxDuration = 300; // Vercel 최대 실행 시간 5분 (Pro 이상)
 import { logger } from '@/lib/logger';
 import { SUMMARY_ANALYSIS_PROMPT, DETAIL_ANALYSIS_PROMPT, chunkQuestionNumbers, tagConversation } from '@/lib/prompts-stream';
 import { analyzeMultipleAnswers } from '@/lib/starAnalyzer';
-import type { SSEEventType, PremiumFeedbackItem } from '@/lib/types';
+import type { SSEEventType, PremiumFeedbackItem, GameInterviewReport } from '@/lib/types';
 import { normalizeFeedbackItemScores } from '@/lib/reportUtils';
+import { saveSessionAnalysis } from '@/lib/sessionStore';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -16,6 +17,7 @@ interface AnalyzeStreamRequest {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
   selected_job: string;
   selected_company?: string;
+  session_id?: string;
 }
 
 // SSE 이벤트 전송 헬퍼
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    const { messages, selected_job, selected_company } = body;
+    const { messages, selected_job, selected_company, session_id } = body;
 
     // 유효성 검사
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -72,9 +74,14 @@ export async function POST(request: NextRequest) {
     // 지원자 답변만 추출 (STAR 분석용)
     const userAnswers = messages.filter(m => m.role === 'user').map(m => m.content);
 
+    // 세션 저장용 인증 정보 (middleware 주입; 없으면 분석만 수행하고 저장 스킵)
+    const studentId = request.headers.get('x-student-id') ?? '';
+    const studentCode = request.headers.get('x-student-code') ?? '';
+
     // ReadableStream으로 SSE 구현
     const stream = new ReadableStream({
       async start(controller) {
+        const analysisUsage = { prompt: 0, completion: 0 };
         try {
           // 1. 분석 시작
           sendSSE(controller, 'start', { message: '면접 분석을 시작합니다...' }, 5);
@@ -123,6 +130,8 @@ ${taggedConversation}
             } finally {
               clearTimeout(summaryTimeout);
             }
+            analysisUsage.prompt += summaryResponse.usage?.prompt_tokens ?? 0;
+            analysisUsage.completion += summaryResponse.usage?.completion_tokens ?? 0;
 
             const finishReason = summaryResponse.choices[0].finish_reason;
             if (finishReason === 'length') {
@@ -197,6 +206,8 @@ ${taggedConversation}
                 } finally {
                   clearTimeout(chunkTimeout);
                 }
+                analysisUsage.prompt += detailResponse.usage?.prompt_tokens ?? 0;
+                analysisUsage.completion += detailResponse.usage?.completion_tokens ?? 0;
 
                 if (detailResponse.choices[0].finish_reason === 'length') {
                   logger.warn(`[분석] 청크 ${chunkIndex} 토큰 한도 도달 — 응답이 잘렸을 수 있음`);
@@ -298,7 +309,34 @@ ${taggedConversation}
           };
 
           logger.debug(`[분석] 최종 결과: ${sortedFeedback.length}/${questionCount}개 질문 분석됨`);
-          sendSSE(controller, 'complete', finalResult, 100);
+
+          // 세션 저장 (실패해도 분석 결과 전송은 계속)
+          let persisted = { saved: false, sessionId: null as string | null };
+          if (studentId) {
+            persisted = await saveSessionAnalysis({
+              sessionId: typeof session_id === 'string' ? session_id : null,
+              studentId,
+              studentCode,
+              jobName: selected_job,
+              companyName: selected_company ?? '',
+              report: finalResult as GameInterviewReport & { _meta?: { total_questions?: number; analyzed_questions?: number; missing_questions?: number[] } },
+              messages,
+              promptTokens: analysisUsage.prompt,
+              completionTokens: analysisUsage.completion,
+              model: 'gpt-4o',
+              isDev: studentCode === 'DEV-ADMIN',
+            });
+          }
+
+          const completeResult = {
+            ...finalResult,
+            _meta: {
+              ...finalResult._meta,
+              session_id: persisted.sessionId,
+              saved: persisted.saved,
+            },
+          };
+          sendSSE(controller, 'complete', completeResult, 100);
           controller.close();
         } catch (err) {
           logger.error('스트리밍 분석 오류:', err);

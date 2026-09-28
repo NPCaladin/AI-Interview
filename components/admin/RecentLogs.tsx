@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { adminFetch } from '@/lib/adminFetch';
 import { Clock, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 
 interface LogEntry {
@@ -11,7 +11,6 @@ interface LogEntry {
 }
 
 export default function RecentLogs({ refreshKey = 0 }: { refreshKey?: number }) {
-  const { authHeaders, logout } = useAdminAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -22,13 +21,9 @@ export default function RecentLogs({ refreshKey = 0 }: { refreshKey?: number }) 
     else setIsLoading(true);
     setFetchError('');
     try {
-      const res = await fetch('/api/admin/logs', {
-        headers: { ...authHeaders(), 'Cache-Control': 'no-cache' },
+      const res = await adminFetch('/api/admin/logs', {
+        headers: { 'Cache-Control': 'no-cache' },
       });
-      if (res.status === 401) {
-        logout();
-        return;
-      }
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
         setFetchError(errJson.error || `서버 오류 (${res.status})`);
@@ -42,7 +37,7 @@ export default function RecentLogs({ refreshKey = 0 }: { refreshKey?: number }) 
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [authHeaders, logout]);
+  }, []);
 
   useEffect(() => {
     fetchLogs();

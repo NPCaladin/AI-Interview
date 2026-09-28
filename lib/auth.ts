@@ -26,16 +26,6 @@ export async function signToken(payload: AuthPayload): Promise<string> {
     .sign(getSecretKey());
 }
 
-export async function signAdminToken(): Promise<string> {
-  return new SignJWT({ role: 'admin' as const })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setSubject('admin')
-    .setIssuer('eveni-interview')
-    .setIssuedAt()
-    .setExpirationTime('24h')
-    .sign(getSecretKey());
-}
-
 export async function verifyToken(token: string): Promise<AuthPayload> {
   const { payload } = await jwtVerify(token, getSecretKey());
   return {

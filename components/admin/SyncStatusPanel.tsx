@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { adminFetch } from '@/lib/adminFetch';
 import {
   ArrowLeft, RefreshCw, Loader2, AlertTriangle,
   Clock, Target, PlayCircle, ClipboardList, Play, Lock, Info,
@@ -118,7 +118,6 @@ function ConfirmTriggerModal({ onConfirm, onCancel, isRunning }: {
 }
 
 export default function SyncStatusPanel() {
-  const { authHeaders, logout } = useAdminAuth();
   const [data, setData] = useState<StatusResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -135,10 +134,9 @@ export default function SyncStatusPanel() {
     setError('');
     try {
       const [statusRes, pendingRes] = await Promise.all([
-        fetch('/api/admin/sync-status', { headers: authHeaders(), cache: 'no-store' }),
-        fetch('/api/admin/reactivations?status=pending&limit=1', { headers: authHeaders(), cache: 'no-store' }),
+        adminFetch('/api/admin/sync-status', { cache: 'no-store' }),
+        adminFetch('/api/admin/reactivations?status=pending&limit=1', { cache: 'no-store' }),
       ]);
-      if (statusRes.status === 401 || pendingRes.status === 401) { logout(); return; }
       if (!statusRes.ok) {
         setError(`상태 조회 실패 (${statusRes.status})`);
         return;
@@ -153,7 +151,7 @@ export default function SyncStatusPanel() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [authHeaders, logout]);
+  }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -161,12 +159,11 @@ export default function SyncStatusPanel() {
     setIsTriggering(true);
     setTriggerResult(null);
     try {
-      const res = await fetch('/api/admin/sync-status', {
+      const res = await adminFetch('/api/admin/sync-status', {
         method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dryRun }),
       });
-      if (res.status === 401) { logout(); return; }
       const json = await res.json();
       if (!res.ok) {
         setTriggerResult(`오류: ${json.error || '실행 실패'}`);
@@ -222,7 +219,7 @@ export default function SyncStatusPanel() {
   const bannerAccent = isCritical || isLockStuck ? '#ef4444' : '#f59e0b';
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
+    <div className="min-h-full">
       <div className="max-w-6xl mx-auto">
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-6">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { adminFetch } from '@/lib/adminFetch';
 import { TrendingUp, Loader2 } from 'lucide-react';
 
 interface DailyData {
@@ -11,7 +11,6 @@ interface DailyData {
 }
 
 export default function UsageChart() {
-  const { authHeaders } = useAdminAuth();
   const [days, setDays] = useState<7 | 14 | 30>(14);
   const [data, setData] = useState<DailyData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -19,7 +18,7 @@ export default function UsageChart() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/admin/analytics?days=${days}`, { headers: authHeaders() });
+      const res = await adminFetch(`/api/admin/analytics?days=${days}`);
       const json = await res.json();
       setData(json.daily || []);
     } catch {
@@ -27,7 +26,7 @@ export default function UsageChart() {
     } finally {
       setIsLoading(false);
     }
-  }, [days, authHeaders]);
+  }, [days]);
 
   useEffect(() => {
     fetchData();

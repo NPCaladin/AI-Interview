@@ -29,6 +29,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
   const [interviewData, setInterviewData] = useState<InterviewData | null>(null);
   const [resumeText, setResumeText] = useState<string>('');
   const [timeoutModalType, setTimeoutModalType] = useState<'warning' | 'final' | null>(null);
+  const [sessionId, setSessionId] = useState<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const isRequestingRef = useRef(false); // 더블클릭 방지용 ref (state보다 즉시 반영)
   const ttsSeqRef = useRef(0); // TTS 요청 순서 관리 (구버전 응답 무시용)
@@ -197,6 +198,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
     setQuestionCount(0);
     setCurrentPhase('intro');
     sessionIdRef.current = generateId(); // 새 세션 ID 생성
+    setSessionId(sessionIdRef.current);
 
     try {
       const requestBody = {
@@ -462,6 +464,7 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
     setQuestionCount(0);
     setCurrentPhase('intro');
     sessionIdRef.current = '';
+    setSessionId('');
   }, [cancelPendingRequest, clearInactivityTimer]);
 
   // 언마운트 시 타이머 정리
@@ -504,5 +507,6 @@ export function useInterview({ sttModel, updateAudioUrl, clearAudioUrl }: UseInt
     timeoutModalType,
     handleTimeoutContinue,
     endInterview,
+    sessionId,
   };
 }

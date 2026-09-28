@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { adminFetch } from '@/lib/adminFetch';
 import { X, Loader2, AlertCircle } from 'lucide-react';
 
 interface Student {
@@ -21,7 +21,6 @@ interface StudentFormModalProps {
 }
 
 export default function StudentFormModal({ student, onClose, onSuccess }: StudentFormModalProps) {
-  const { authHeaders } = useAdminAuth();
   const isEdit = !!student;
 
   const [code, setCode] = useState(student?.code || '');
@@ -49,15 +48,15 @@ export default function StudentFormModal({ student, onClose, onSuccess }: Studen
       let response: Response;
 
       if (isEdit) {
-        response = await fetch('/api/admin/students', {
+        response = await adminFetch('/api/admin/students', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: student.id, name, weekly_limit: weeklyLimit }),
         });
       } else {
-        response = await fetch('/api/admin/students', {
+        response = await adminFetch('/api/admin/students', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, name, weekly_limit: weeklyLimit }),
         });
       }

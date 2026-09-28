@@ -9,6 +9,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { getAdminActor } from '@/lib/adminAuth';
+import { logAdminAction } from '@/lib/adminAudit';
 import { runErpPull } from '@/lib/erp/sync';
 
 export const dynamic = 'force-dynamic';
@@ -72,6 +74,29 @@ export async function POST(request: NextRequest) {
         : undefined;
 
     const result = await runErpPull({ dryRun, maxPages, pageLimit });
+
+    await logAdminAction({
+      actor: getAdminActor(request),
+      action: 'SYNC_TRIGGER',
+      resource_type: 'erp_sync',
+      resource_id: result.runId ?? null,
+      details: {
+        dryRun,
+        maxPages: maxPages ?? null,
+        pageLimit: pageLimit ?? null,
+        result: {
+          skipped: result.skipped ?? false,
+          reason: result.reason ?? null,
+          pages: result.pagesFetched,
+          upserted: result.upserted,
+          queued: result.queued,
+          deactivated: result.deactivated,
+          errors: result.errors.length,
+        },
+      },
+      request,
+    });
+
     return NextResponse.json(result);
   } catch (e) {
     logger.error('[Admin SyncStatus POST] Error:', e);

@@ -13,6 +13,7 @@ interface UseStreamingAnalysisOptions {
   questionCount: number;
   isInterviewStarted: boolean;
   setIsInterviewStarted: (v: boolean) => void;
+  sessionId: string;
 }
 
 export function useStreamingAnalysis({
@@ -22,6 +23,7 @@ export function useStreamingAnalysis({
   questionCount,
   isInterviewStarted,
   setIsInterviewStarted,
+  sessionId,
 }: UseStreamingAnalysisOptions) {
   const { authHeaders } = useAuth();
   const [interviewReport, setInterviewReport] = useState<GameInterviewReport | null>(null);
@@ -66,6 +68,7 @@ export function useStreamingAnalysis({
           messages: messages.map(({ role, content }) => ({ role, content })),
           selected_job: selectedJob,
           selected_company: selectedCompany,
+          session_id: sessionId || undefined,
         }),
         signal: controller.signal,
       });
@@ -249,7 +252,7 @@ export function useStreamingAnalysis({
       analysisAbortRef.current = null;
       setIsAnalyzing(false);
     }
-  }, [messages, questionCount, selectedJob, selectedCompany, setIsInterviewStarted, authHeaders]);
+  }, [messages, questionCount, selectedJob, selectedCompany, setIsInterviewStarted, authHeaders, sessionId]);
 
   const retryAnalysis = useCallback(() => {
     setInterviewReport(null);

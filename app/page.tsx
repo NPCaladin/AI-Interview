@@ -36,7 +36,7 @@ export default function Home() {
     questionCount, currentPhase, setResumeText,
     startInterview, sendMessage, handleAudioInput: interviewAudioInput,
     reset: interviewReset, canAnalyze,
-    timeoutModalType, handleTimeoutContinue, endInterview,
+    timeoutModalType, handleTimeoutContinue, endInterview, sessionId,
   } = useInterview({ sttModel, updateAudioUrl, clearAudioUrl });
 
   const {
@@ -45,7 +45,7 @@ export default function Home() {
     cancelAnalysis, analysisStartTime,
   } = useStreamingAnalysis({
     messages, selectedJob, selectedCompany, questionCount,
-    isInterviewStarted, setIsInterviewStarted,
+    isInterviewStarted, setIsInterviewStarted, sessionId,
   });
 
   // 에러를 toast로 표시하는 래퍼

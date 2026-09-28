@@ -9,6 +9,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { getAdminActor } from '@/lib/adminAuth';
+import { logAdminAction } from '@/lib/adminAudit';
+import { isUuid } from '@/lib/sessionStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -140,8 +143,11 @@ export async function PATCH(request: NextRequest) {
       note?: string;
     };
 
-    if (!id || typeof id !== 'string') {
-      return NextResponse.json({ error: 'id 필요' }, { status: 400 });
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'id(UUID) 필요' }, { status: 400 });
+    }
+    if (note !== undefined && (typeof note !== 'string' || note.length > 500)) {
+      return NextResponse.json({ error: 'note는 500자 이내 문자열' }, { status: 400 });
     }
     if (!action || !['approve', 'reject', 'merge'].includes(action)) {
       return NextResponse.json({ error: 'action은 approve/reject/merge' }, { status: 400 });
@@ -178,6 +184,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const nowIso = new Date().toISOString();
+    const actor = getAdminActor(request);
 
     // approve: 해당 code 의 students.is_active=true + status=approved
     if (action === 'approve') {
@@ -211,6 +218,7 @@ export async function PATCH(request: NextRequest) {
         .from('pending_reactivations')
         .update({
           status: 'approved',
+          reviewed_by: actor,
           reviewed_at: nowIso,
           note: note ?? null,
           student_id: targetId, // case1 보강
@@ -221,6 +229,15 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: '큐 상태 갱신 실패' }, { status: 500 });
       }
 
+      await logAdminAction({
+        actor,
+        action: 'QUEUE_APPROVE',
+        resource_type: 'reactivation',
+        resource_id: id,
+        details: { student_code: queueRow.student_code, linked_student_code: null, note: note ?? null },
+        request,
+      });
+
       return NextResponse.json({ ok: true, action: 'approve', student_id: targetId });
     }
 
@@ -230,6 +247,7 @@ export async function PATCH(request: NextRequest) {
         .from('pending_reactivations')
         .update({
           status: 'rejected',
+          reviewed_by: actor,
           reviewed_at: nowIso,
           note: note ?? null,
         })
@@ -238,6 +256,14 @@ export async function PATCH(request: NextRequest) {
         logger.error('[Admin Reactivations PATCH] reject error:', qErr);
         return NextResponse.json({ error: '거부 처리 실패' }, { status: 500 });
       }
+      await logAdminAction({
+        actor,
+        action: 'QUEUE_REJECT',
+        resource_type: 'reactivation',
+        resource_id: id,
+        details: { student_code: queueRow.student_code, linked_student_code: null, note: note ?? null },
+        request,
+      });
       return NextResponse.json({ ok: true, action: 'reject' });
     }
 
@@ -299,6 +325,7 @@ export async function PATCH(request: NextRequest) {
         .update({
           status: 'merged',
           linked_student_code: linkCode,
+          reviewed_by: actor,
           reviewed_at: nowIso,
           student_id: currentId,
           note: note ?? null,
@@ -308,6 +335,15 @@ export async function PATCH(request: NextRequest) {
         logger.error('[Admin Reactivations PATCH] merge queue update error:', qErr);
         return NextResponse.json({ error: '큐 상태 갱신 실패' }, { status: 500 });
       }
+
+      await logAdminAction({
+        actor,
+        action: 'QUEUE_MERGE',
+        resource_type: 'reactivation',
+        resource_id: id,
+        details: { student_code: queueRow.student_code, linked_student_code: linkCode, note: note ?? null },
+        request,
+      });
 
       return NextResponse.json({
         ok: true,

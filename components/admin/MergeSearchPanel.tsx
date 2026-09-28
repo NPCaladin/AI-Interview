@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { adminFetch } from '@/lib/adminFetch';
 import { Search, Loader2, GitMerge, User, AlertTriangle } from 'lucide-react';
 
 interface SearchResult {
@@ -25,7 +25,6 @@ function formatDate(iso: string | null): string {
 }
 
 export default function MergeSearchPanel({ currentName, currentCode, onMerge, disabled }: Props) {
-  const { authHeaders, logout } = useAdminAuth();
   const [query, setQuery] = useState(currentName);
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -42,11 +41,9 @@ export default function MergeSearchPanel({ currentName, currentCode, onMerge, di
     setIsSearching(true);
     setResults(null);
     try {
-      const res = await fetch(`/api/admin/reactivations/search?name=${encodeURIComponent(q)}`, {
-        headers: authHeaders(),
+      const res = await adminFetch(`/api/admin/reactivations/search?name=${encodeURIComponent(q)}`, {
         cache: 'no-store',
       });
-      if (res.status === 401) { logout(); return; }
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         setError(j.error || `검색 실패 (${res.status})`);

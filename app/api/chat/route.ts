@@ -9,6 +9,7 @@ import { TOTAL_QUESTION_COUNT, MAX_USER_INPUT_LENGTH, CHAT_API_TIMEOUT, MAX_CONT
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { getRecentlyAskedQuestions, recordSessionQuestion } from '@/lib/crossSessionDedup';
+import { isUuid, createSession, bumpSession } from '@/lib/sessionStore';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -67,6 +68,8 @@ export async function POST(request: NextRequest) {
 
     // studentId: 매 요청에서 추출 (middleware가 인증된 요청에 주입)
     const studentId = request.headers.get('x-student-id');
+    // studentCode: middleware가 주입 (미주입 환경에서는 빈 문자열)
+    const studentCode = request.headers.get('x-student-code') ?? '';
 
     // 면접 시작 시 사용량 소진
     let usageRemaining: number | undefined;
@@ -79,7 +82,10 @@ export async function POST(request: NextRequest) {
       }
 
       const { data: usageResult, error: rpcError } = await supabase
-        .rpc('consume_usage', { p_student_id: studentId });
+        .rpc('consume_usage', {
+          p_student_id: studentId,
+          p_session_id: isUuid(session_id) ? session_id : null,
+        });
 
       if (rpcError || usageResult === null || usageResult === undefined) {
         logger.error('[Chat API] Usage RPC error');
@@ -111,6 +117,26 @@ export async function POST(request: NextRequest) {
 
       usageRemaining = usageResult.remaining;
       logger.info(`[Chat API] Usage consumed. Remaining: ${usageRemaining}`);
+
+      // 세션 행 생성 (이후 bump 전에 존재하도록 await, 실패해도 면접 진행)
+      if (isUuid(session_id)) {
+        if (studentCode) {
+          try {
+            await createSession({
+              id: session_id,
+              studentId,
+              studentCode,
+              jobName: selected_job ?? '',
+              companyName: selected_company ?? '',
+              isDev: !!config || studentCode === 'DEV-ADMIN',
+            });
+          } catch (sessionErr) {
+            logger.warn('[Chat API] 세션 생성 실패:', sessionErr instanceof Error ? sessionErr.message : sessionErr);
+          }
+        } else {
+          logger.warn('[Chat API] x-student-code 헤더 없음 — 세션 생성 스킵');
+        }
+      }
     }
 
     // Phase 4: 서버사이드 강제 종료 (안전망 — 마무리 턴(12) 이후에만 작동)
@@ -240,6 +266,8 @@ export async function POST(request: NextRequest) {
     let finalCompletion: OpenAI.Chat.Completions.ChatCompletion | null = null;
     let retryCount = 0;
     let currentTemperature = baseTemperature;
+    let chatPromptTokens = 0;
+    let chatCompletionTokens = 0;
 
     while (retryCount <= MAX_DEDUP_RETRIES) {
       let completion;
@@ -250,6 +278,8 @@ export async function POST(request: NextRequest) {
           temperature: currentTemperature,
           max_tokens: maxTokens,
         });
+        chatPromptTokens += completion.usage?.prompt_tokens ?? 0;
+        chatCompletionTokens += completion.usage?.completion_tokens ?? 0;
         logger.debug('[Chat API] OpenAI API 응답 받음 (시도:', retryCount + 1, ')');
       } catch (openaiError: unknown) {
         logger.error('[Chat API] OpenAI API 오류');
@@ -346,11 +376,23 @@ export async function POST(request: NextRequest) {
       ).catch((err) => { logger.error('[Chat API] 세션 질문 기록 실패:', err instanceof Error ? err.message : err); });
     }
 
-    const latency = Date.now() - startTime;
-    logger.debug('[Chat API] 총 응답 시간:', latency, 'ms');
-
     // 마무리 턴(questionCount >= 12): AI가 종료 인사 후 면접 종료 신호
     const isClosingTurn = safeQuestionCount >= TOTAL_QUESTION_COUNT;
+
+    // 세션 진행 갱신 (fire-and-forget, bumpSession 내부에서 에러 삼킴)
+    if (studentId && isUuid(session_id)) {
+      void bumpSession({
+        id: session_id,
+        studentId,
+        questionCount: safeQuestionCount + 1,
+        promptTokens: chatPromptTokens,
+        completionTokens: chatCompletionTokens,
+        ended: isClosingTurn,
+      });
+    }
+
+    const latency = Date.now() - startTime;
+    logger.debug('[Chat API] 총 응답 시간:', latency, 'ms');
 
     return NextResponse.json(
       {
